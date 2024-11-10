@@ -116,3 +116,10 @@ bitset<10> Sudoku::Available(int row, int col) const
             res.reset(field[i][j]);
     return res;
 }
+
+void Sudoku::FreezeAll()
+{
+    for (int i = 0; i < 9; i++)
+        for (int j = 0; j < 9; j++)
+            initial[i][j] = !!field[i][j];
+}

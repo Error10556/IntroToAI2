@@ -34,4 +34,5 @@ public:
     int Cell(int r, int c) const;
     const std::vector<int>& operator[](int row) const;
     std::bitset<10> Available(int row, int col) const;
+    void FreezeAll();
 };
