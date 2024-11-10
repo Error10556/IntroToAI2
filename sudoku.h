@@ -1,3 +1,4 @@
+#include <bitset>
 #include <vector>
 
 class Sudoku
@@ -17,8 +18,10 @@ public:
 private:
     std::vector<std::vector<int>> field;
     std::vector<std::vector<bool>> initial;
+    static void Block(int no, int& xstart, int& xend, int& ystart, int& yend);
 
 public:
+    static int BlockNo(int row, int col);
     Sudoku();
     Sudoku(const std::vector<std::vector<int>>& field);
     const std::vector<int>& Row(int row) const;
@@ -29,4 +32,5 @@ public:
     DigitReference Cell(int r, int c);
     int Cell(int r, int c) const;
     const std::vector<int>& operator[](int row) const;
+    std::bitset<10> Available(int row, int col) const;
 };
