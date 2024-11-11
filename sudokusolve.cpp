@@ -50,7 +50,7 @@ std::vector<Sudoku> SolveDFS(const Sudoku& s, int maxresults)
 std::vector<Sudoku> SolveDFS(Sudoku s, int maxresults, ShuffleProc shuffler,
                              void* shuffleArgs)
 {
-    int x, y;
+    int x = -1, y = 0;
     NextUnknown(s, x, y);
     vector<Sudoku> res;
     DFS(s, res, x, y, maxresults, shuffler, shuffleArgs);

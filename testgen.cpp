@@ -57,16 +57,36 @@ void StripSudoku(Sudoku& s)
     for (int i = coords.size() - 1; i >= 0; i--)
         coords[i] = {i / 9, i % 9};
     Shuffle(coords, nullptr);
-    for (auto& p : coords)
+    vector<int> initial(81);
+    for (int i = 0; i < 81; i++)
     {
-        auto cell = s.Cell(p.first, p.second);
-        int val = cell;
-        cell = 0;
-        if (SingleSol(s))
-            continue;
-        cell = val;
-        break;
+        auto p = coords[i];
+        initial[i] = s[p.first][p.second];
     }
+    int l = 0, r = 81, curptr = 0;
+    auto MoveTo = [&](int pos) -> void
+    {
+        while (curptr < pos)
+        {
+            auto p = coords[curptr++];
+            s.Cell(p.first, p.second) = 0;
+        }
+        while (curptr > pos)
+        {
+            auto p = coords[--curptr];
+            s.Cell(p.first, p.second) = initial[curptr];
+        }
+    };
+    while (r - l > 1)
+    {
+        int m = (l + r) / 2;
+        MoveTo(m);
+        if (SingleSol(s))
+            l = m;
+        else
+            r = m;
+    }
+    MoveTo(l);
 }
 
 int NumberOfDigits(const Sudoku& s)
@@ -139,7 +159,7 @@ int main(int argc, char** argv)
     string dir = argv[1];
     while (dir.back() == '/')
         dir.pop_back();
-    mkdir(dir.c_str(), 0);
+    mkdir(dir.c_str(), 0755);
     int noTests = atoi(argv[2]);
     int wIndex = strlen(argv[2]);
     int start = atoi(argv[3]);
@@ -155,12 +175,19 @@ int main(int argc, char** argv)
         Sudoku sol = RandomSudoku();
         Sudoku s;
         int noDigits;
+        int lim = 101;
         do
         {
+            lim--;
+            if (!lim)
+                break;
             s = sol;
             StripSudoku(s);
             noDigits = NumberOfDigits(s);
-        } while (noDigits > left.rbegin()->first);
+            lim += 0;
+        } while (lim && noDigits > left.rbegin()->first);
+        if (!lim)
+            continue;
         auto iter = left.lower_bound(noDigits);
         int needDigits = iter->first;
         if (needDigits > noDigits)
@@ -176,6 +203,7 @@ int main(int argc, char** argv)
             left.erase(iter);
         progress++;
         cout << "\r" << progress * 100 / maxProgress << '%';
+        cout.flush();
     }
     cout << "\nDone\n";
     fclose(randgen);
