@@ -11,9 +11,9 @@
             "program": "${workspaceFolder}/${fileBasenameNoExtension}",
             "args": [
                 "tests",
-                "5",
-                "30",
-                "35"
+                "50",
+                "20",
+                "40"
             ]
         }
     ]

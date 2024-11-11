@@ -2,6 +2,7 @@
 #include "sudokusolve.h"
 #include <climits>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <iostream>
@@ -38,6 +39,14 @@ template <class T> void Shuffle(vector<T>& v, void*)
         swap(v[i], v[RandInt(i, n)]);
 }
 
+vector<pair<int, int>> AllCoords()
+{
+    vector<pair<int, int>> coords(81);
+    for (int i = coords.size() - 1; i >= 0; i--)
+        coords[i] = {i / 9, i % 9};
+    return coords;
+}
+
 Sudoku RandomSudoku()
 {
     Sudoku empty;
@@ -53,40 +62,18 @@ bool SingleSol(const Sudoku& s)
 
 void StripSudoku(Sudoku& s)
 {
-    vector<pair<int, int>> coords(81);
-    for (int i = coords.size() - 1; i >= 0; i--)
-        coords[i] = {i / 9, i % 9};
+    auto coords = AllCoords();
     Shuffle(coords, nullptr);
-    vector<int> initial(81);
-    for (int i = 0; i < 81; i++)
+    for (auto& p : coords)
     {
-        auto p = coords[i];
-        initial[i] = s[p.first][p.second];
-    }
-    int l = 0, r = 81, curptr = 0;
-    auto MoveTo = [&](int pos) -> void
-    {
-        while (curptr < pos)
-        {
-            auto p = coords[curptr++];
-            s.Cell(p.first, p.second) = 0;
-        }
-        while (curptr > pos)
-        {
-            auto p = coords[--curptr];
-            s.Cell(p.first, p.second) = initial[curptr];
-        }
-    };
-    while (r - l > 1)
-    {
-        int m = (l + r) / 2;
-        MoveTo(m);
+        auto cell = s.Cell(p.first, p.second);
+        int val = cell;
+        cell = 0;
         if (SingleSol(s))
-            l = m;
-        else
-            r = m;
+            continue;
+        cell = val;
+        break;
     }
-    MoveTo(l);
 }
 
 int NumberOfDigits(const Sudoku& s)
@@ -96,6 +83,25 @@ int NumberOfDigits(const Sudoku& s)
         for (int j = 0; j < 9; j++)
             res += !!s[i][j];
     return res;
+}
+
+Sudoku LowDigitGen(int cnt)
+{
+    Sudoku sol = RandomSudoku();
+    auto coords = AllCoords();
+    while (true)
+    {
+        for (int i = 0; i < cnt; i++)
+            swap(coords[i], coords[RandInt(i, 81)]);
+        Sudoku res;
+        for (int i = 0; i < cnt; i++)
+        {
+            auto p = coords[i];
+            res.Cell(p.first, p.second) = sol[p.first][p.second];
+        }
+        if (SingleSol(res))
+            return res;
+    }
 }
 
 void RestoreDigits(Sudoku& s, const Sudoku& solution, int noDigits)
@@ -170,11 +176,15 @@ int main(int argc, char** argv)
         left[i] = noTests;
 
     int progress = 0, maxProgress = noTests * (end - start + 1);
+    auto OutputProgress = [&]() -> void {
+        cout << "\r" << progress * 100 / maxProgress << '%';
+        cout.flush();
+    };
     while (left.size())
     {
-        Sudoku sol = RandomSudoku();
-        Sudoku s;
+        Sudoku sol, s;
         int noDigits;
+        sol = RandomSudoku();
         int lim = 101;
         do
         {
@@ -184,7 +194,6 @@ int main(int argc, char** argv)
             s = sol;
             StripSudoku(s);
             noDigits = NumberOfDigits(s);
-            lim += 0;
         } while (lim && noDigits > left.rbegin()->first);
         if (!lim)
             continue;
@@ -202,8 +211,7 @@ int main(int argc, char** argv)
         if (!iter->second)
             left.erase(iter);
         progress++;
-        cout << "\r" << progress * 100 / maxProgress << '%';
-        cout.flush();
+        OutputProgress();
     }
     cout << "\nDone\n";
     fclose(randgen);
