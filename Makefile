@@ -4,11 +4,11 @@ sudoku.o: sudoku.cpp
 sudokusolve.o: sudokusolve.cpp
 	clang++ -std=c++11 -O2 -c sudokusolve.cpp -o sudokusolve.o
 
-testgen.o: testgen.cpp sudokusolve.h sudoku.h
-	clang++ -std=c++11 -O2 -c testgen.cpp -o testgen.o
+testgen.bin: testgen.cpp sudokusolve.h sudoku.h sudokusolve.o sudoku.o
+	clang++ -std=c++11 -O2 testgen.cpp sudokusolve.o sudoku.o -o testgen.bin
 
-testgen.bin: testgen.o sudokusolve.o sudoku.o
-	clang++ -O2 testgen.o sudokusolve.o sudoku.o -o testgen.bin
+dfssolver.bin: dfssolver.cpp sudokusolve.h sudoku.h sudokusolve.o sudoku.o
+	clang++ -std=c++11 -O2 dfssolver.cpp sudokusolve.o sudoku.o -o dfssolver.bin
 
 clean:
 	rm *.o *.bin
