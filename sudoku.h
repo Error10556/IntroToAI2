@@ -19,10 +19,10 @@ public:
 private:
     std::vector<std::vector<int>> field;
     std::vector<std::vector<bool>> initial;
-    static void Block(int no, int& xstart, int& xend, int& ystart, int& yend);
 
 public:
     static int BlockNo(int row, int col);
+    static void Block(int no, int& xstart, int& xend, int& ystart, int& yend);
     Sudoku();
     Sudoku(const std::vector<std::vector<int>>& field);
     const std::vector<int>& Row(int row) const;
