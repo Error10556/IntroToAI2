@@ -1,7 +1,6 @@
 #include <algorithm>
 #include <bitset>
 #include <iostream>
-#include <locale>
 #include <numeric>
 #include <vector>
 using namespace std;
