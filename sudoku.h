@@ -12,7 +12,7 @@ public:
 
     public:
         DigitReference(int& ref);
-        int& operator=(int val);
+        DigitReference& operator=(int val);
         operator int();
     };
 

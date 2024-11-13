@@ -15,7 +15,7 @@ public:
 
     public:
         DigitReference(int& ref);
-        int& operator=(int val);
+        DigitReference& operator=(int val);
         operator int();
     };
 
@@ -44,12 +44,12 @@ Sudoku::DigitReference::DigitReference(int& ref) : ref(ref)
 {
 }
 
-int& Sudoku::DigitReference::operator=(int other)
+Sudoku::DigitReference& Sudoku::DigitReference::operator=(int other)
 {
     if (other < 0 || other > 9)
         other = 0;
     ref = other;
-    return ref;
+    return *this;
 }
 
 Sudoku::DigitReference::operator int()
@@ -200,28 +200,22 @@ istream& operator>>(istream& in, Sudoku& s)
     return in;
 }
 
-template <class Iter> void DigitCounts(Iter begin, Iter end, int counts[10])
+int Choose2(int n)
 {
-    while (begin != end)
-    {
-        counts[*begin]++;
-        ++begin;
-    }
+    return n * (n - 1) / 2;
 }
 
 class Chromosome
 {
-public:
-    Sudoku Field;
-
 private:
+    Sudoku field;
     typedef bool (*CoordFilter)(const Sudoku& field, int y, int x);
     vector<pair<int, int>> AllCoords(CoordFilter filter)
     {
         vector<pair<int, int>> res;
         for (int i = 0; i < 9; i++)
             for (int j = 0; j < 9; j++)
-                if (filter(Field, i, j))
+                if (filter(field, i, j))
                     res.emplace_back(i, j);
         return res;
     }
@@ -242,31 +236,105 @@ private:
             return !field.Initial(y, x) && field[y][x];
         });
     }
+    void SetDigitCount(int& digitcount, int val)
+    {
+        errorpairs -= Choose2(digitcount);
+        errorpairs += Choose2(val);
+        digitcount = val;
+    }
+    void IncreaseDigitCount(int& digitcount)
+    {
+        errorpairs += digitcount++;
+    }
+    void DecreaseDigitCount(int& digitcount)
+    {
+        errorpairs -= --digitcount;
+    }
+    vector<vector<int>> rowcounts, colcounts, blockcounts;
+    int nonzeros, errorpairs;
+
+    static void RandomMutationIndices(int& no, int inds[9])
+    {
+        no = rand() % 8 + 1;
+        iota(inds, inds + 9, 0);
+        for (int i = 0; i < no; i++)
+            swap(inds[i], inds[i + rand() % (9 - i)]);
+    }
 
 public:
+    struct DigitReference
+    {
+    private:
+        Chromosome* owner;
+        int x, y;
+
+    public:
+        DigitReference(Chromosome* owner, int y, int x)
+            : owner(owner), x(x), y(y)
+        {
+        }
+        operator int() const
+        {
+            return owner->field[y][x];
+        }
+        DigitReference& operator=(int val)
+        {
+            if (val < 0 || val > 9)
+                val = 0;
+            auto cell = owner->field.Cell(y, x);
+            int prv = cell;
+            int blk = Sudoku::BlockNo(y, x);
+            if (prv != 0)
+            {
+                owner->DecreaseDigitCount(owner->rowcounts[y][prv]);
+                owner->DecreaseDigitCount(owner->colcounts[x][prv]);
+                owner->DecreaseDigitCount(owner->blockcounts[blk][prv]);
+                owner->nonzeros--;
+            }
+            if (val != 0)
+            {
+                owner->IncreaseDigitCount(owner->rowcounts[y][val]);
+                owner->IncreaseDigitCount(owner->colcounts[x][val]);
+                owner->IncreaseDigitCount(owner->blockcounts[blk][val]);
+                owner->nonzeros++;
+            }
+            return *this;
+        }
+    };
+    Chromosome(const Sudoku& f)
+        : field(f), rowcounts(9, vector<int>(10)), nonzeros(0), errorpairs(0)
+    {
+        colcounts = blockcounts = rowcounts;
+        for (int i = 0; i < 9; i++)
+            for (int j = 0; j < 9; j++)
+            {
+                int dig = field[i][j];
+                if (!dig)
+                    continue;
+                nonzeros++;
+                rowcounts[i][dig]++;
+                colcounts[j][dig]++;
+                blockcounts[Sudoku::BlockNo(i, j)][dig]++;
+            }
+        for (const auto& v : {rowcounts, colcounts, blockcounts})
+            for (const vector<int>& cnts : v)
+                for (int cnt : cnts)
+                    errorpairs += Choose2(cnt);
+    }
+    const Sudoku& Field() const
+    {
+        return field;
+    }
+    DigitReference Cell(int row, int col)
+    {
+        return DigitReference(this, row, col);
+    }
     static constexpr int MaxFitness = 81;
     // A number in [-891, 81] (where 81 = Chromosome::MaxFitness)
     // The empty sudoku has fitness 0
     int Fitness() const
     {
-        const int maxfit = 81;
-        int fit = 0;
-        for (int i = 0; i < 9; i++)
-            for (int j : Field[i])
-                fit += !!j;
-        auto Punish = [&fit](const vector<int>& v) -> void {
-            int digitcounts[10]{};
-            DigitCounts(v.data(), v.data() + 9, digitcounts);
-            for (int j = 1; j <= 9; j++)
-                fit -= j * (j - 1) / 2;
-        };
-        for (int i = 0; i < 9; i++)
-        {
-            Punish(Field[i]);
-            Punish(Field.Column(i));
-            Punish(Field.Block(i));
-        }
-        return fit;
+        return nonzeros - errorpairs;
     }
     bool MutateGrow()
     {
@@ -277,7 +345,7 @@ public:
         {
             int ind = rand() % empty.size();
             p = empty[ind];
-            avail = Field.Available(p.first, p.second);
+            avail = field.Available(p.first, p.second);
             if (avail.none())
             {
                 empty[ind] = empty.back();
@@ -292,7 +360,7 @@ public:
         for (int i = 1; i <= 9; i++)
             if (avail.test(i))
                 digits.push_back(i);
-        Field.Cell(p.first, p.second) = digits[rand() % digits.size()];
+        Cell(p.first, p.second) = digits[rand() % digits.size()];
         return true;
     }
     bool MutateRemove()
@@ -301,7 +369,7 @@ public:
         if (nonempty.empty())
             return false;
         auto p = nonempty[rand() % nonempty.size()];
-        Field.Cell(p.first, p.second) = 0;
+        Cell(p.first, p.second) = 0;
         return true;
     }
     bool MutateChange()
@@ -311,10 +379,10 @@ public:
         {
             int ind = rand() % nonempty.size();
             auto p = nonempty[ind];
-            auto cell = Field.Cell(p.first, p.second);
+            auto cell = Cell(p.first, p.second);
             int val = cell;
             cell = 0;
-            auto avail = Field.Available(p.first, p.second);
+            auto avail = field.Available(p.first, p.second);
             avail.reset(val);
             if (avail.none())
             {
@@ -336,7 +404,7 @@ public:
     {
         vector<pair<int, int>> swappable;
         for (auto p : region)
-            if (!Field.Initial(p.first, p.second) && Field[p.first][p.second])
+            if (!field.Initial(p.first, p.second) && field[p.first][p.second])
                 swappable.push_back(p);
         int n = swappable.size();
         if (n < 2)
@@ -346,9 +414,9 @@ public:
         b += b >= a;
         auto pa = swappable[a];
         auto pb = swappable[b];
-        int buf = Field[pa.first][pa.second];
-        Field.Cell(pa.first, pa.second) = Field[pb.first][pb.second];
-        Field.Cell(pb.first, pb.second) = buf;
+        int buf = field[pa.first][pa.second];
+        Cell(pa.first, pa.second) = field[pb.first][pb.second];
+        Cell(pb.first, pb.second) = buf;
         return true;
     }
     bool MutateSwapInRow()
@@ -453,13 +521,39 @@ public:
     }
     void ColumnCrossover(const Chromosome& other)
     {
-
+        int no, inds[9];
+        RandomMutationIndices(no, inds);
+        for (int k = 0; k < no; k++)
+        {
+            int i = inds[k];
+            for (int j = 0; j < 9; j++)
+                Cell(j, i) = other.field[j][i];
+        }
     }
     void RowCrossover(const Chromosome& other)
     {
+        int no, inds[9];
+        RandomMutationIndices(no, inds);
+        for (int k = 0; k < no; k++)
+        {
+            int i = inds[k];
+            for (int j = 0; j < 9; j++)
+                Cell(i, j) = other.field[i][j];
+        }
     }
     void BlockCrossover(const Chromosome& other)
     {
+        int no, inds[9];
+        RandomMutationIndices(no, inds);
+        for (int k = 0; k < no; k++)
+        {
+            int blk = inds[k];
+            int xstart, xend, ystart, yend;
+            Sudoku::Block(blk, xstart, xend, ystart, yend);
+            for (int i = ystart; i < yend; i++)
+                for (int j = xstart; j < xend; j++)
+                    Cell(i, j) = other.field[i][j];
+        }
     }
     void Crossover(const Chromosome& other)
     {

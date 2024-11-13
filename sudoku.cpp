@@ -5,12 +5,12 @@ Sudoku::DigitReference::DigitReference(int& ref) : ref(ref)
 {
 }
 
-int& Sudoku::DigitReference::operator=(int other)
+Sudoku::DigitReference& Sudoku::DigitReference::operator=(int other)
 {
     if (other < 0 || other > 9)
         other = 0;
     ref = other;
-    return ref;
+    return *this;
 }
 
 Sudoku::DigitReference::operator int()
