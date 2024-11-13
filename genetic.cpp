@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <bitset>
 #include <iostream>
+#include <iterator>
 #include <numeric>
 #include <set>
 #include <vector>
@@ -672,12 +673,12 @@ public:
 class FitnessComparator
 {
 public:
-    bool operator()(const Chromosome& a, const Chromosome& b)
+    bool operator()(const Chromosome& a, const Chromosome& b) const
     {
         int afit = a.Fitness();
         int bfit = b.Fitness();
         if (afit != bfit)
-            return afit < bfit;
+            return afit > bfit;
         return a.Field().Data() < b.Field().Data();
     }
 };
@@ -685,107 +686,121 @@ public:
 class Population
 {
     int n;
-    set<Chromosome> pop;
+    set<Chromosome, FitnessComparator> pop;
 
     static bool TestChance(float chance)
     {
         return rand() / (double)RAND_MAX < chance;
     }
 
-    static void MutateOne(Chromosome& ch, float mutationChance, int mutMax)
-    {
-        if (!TestChance(mutationChance))
-            return;
-        for (int i = rand() % mutMax; i; --i)
-            ch.Mutate();
-    }
-
-    void SortByFitnessDecreasing()
-    {
-        sort(pop.begin(), pop.end(),
-             [](const Chromosome& a, const Chromosome& b) {
-                 return a.Fitness() > b.Fitness();
-             });
-    }
-
 public:
-    Population(int n, const Sudoku& init)
-        : n(n)
+    Population(int n, const Sudoku& init) : n(n)
     {
         pop.insert(Chromosome(init));
     }
 
-    void Mutate(int elites, float mutationChance, int mutationMax)
+    void Mutate(int minMutationCount, int mutationMax)
     {
-        for (int i = elites; i < pop.size(); i++)
-            MutateOne(pop[i], mutationChance, mutationMax);
+        int sz = pop.size();
+        vector<decltype(pop)::iterator> iters(sz);
+        auto iter = pop.begin();
+        for (int i = 0; i < sz; i++, ++iter)
+            iters[i] = iter;
+        while (minMutationCount > 0 || pop.size() < n)
+        {
+            auto iter = iters[rand() % sz];
+            Chromosome mut = *iter;
+            for (int i = rand() % mutationMax + 1; i; --i)
+                mut.Mutate();
+            pop.insert(mut);
+            minMutationCount -= !!minMutationCount;
+        }
     }
 
     void Crossover(int noLuckyChromosomes, int childrenPerCouple)
     {
         int sz = pop.size();
+        if (sz < 2)
+            return;
         vector<int> fits(sz);
-        for (int i = 0; i < sz; i++)
-            fits[i] = pop[i].Fitness() - Chromosome::MinFitness +
-                      (Chromosome::MaxFitness - Chromosome::MinFitness) / 5;
+        vector<set<Chromosome>::iterator> iters(sz);
+        {
+            auto iter = pop.begin();
+            for (int i = 0; i < sz; i++, iter++)
+            {
+                fits[i] = iter->Fitness() - Chromosome::MinFitness +
+                          (Chromosome::MaxFitness - Chromosome::MinFitness) / 5;
+                iters[i] = iter;
+            }
+        }
 
         FitSampler samp(fits);
-        pop.reserve(sz + noLuckyChromosomes * childrenPerCouple);
         for (int i = 0; i < noLuckyChromosomes; i++)
         {
             int mother = samp.Sample();
             if (mother == -1)
                 continue;
-            int father = rand() % sz;
+            int father = rand() % (sz - 1);
+            father += father >= mother;
             for (int j = 0; j < childrenPerCouple; j++)
-                pop.emplace_back(pop[mother]).Crossover(pop[father]);
+            {
+                Chromosome child = *iters[mother];
+                child.Crossover(*iters[father]);
+                pop.insert(child);
+            }
         }
     }
 
     void KillExcess(int elites)
     {
         int sz = pop.size();
-        vector<int> fits(sz - elites);
-        for (int i = elites; i < sz; i++)
-            fits[i - elites] =
-                Chromosome::MaxFitness - pop[i].Fitness() +
-                (Chromosome::MaxFitness - Chromosome::MinFitness) / 5;
+        if (sz <= n || elites >= sz)
+            return;
+        vector<int> fits(sz);
+        {
+            auto iter = pop.begin();
+            advance(iter, elites);
+            for (int i = elites; i < sz; i++, ++iter)
+            {
+                fits[i] = Chromosome::MaxFitness - iter->Fitness() +
+                          (Chromosome::MaxFitness - Chromosome::MinFitness) / 5;
+            }
+        }
         FitSampler samp(fits);
         vector<bool> excess(sz);
         for (int i = sz - n; i; --i)
         {
-            int ind = samp.Sample() + elites;
+            int ind = samp.Sample();
             if (ind != -1)
                 excess[ind] = true;
         }
-        for (int top = 0, i = 0; top < n; i++)
+        auto iter = pop.begin();
+        advance(iter, elites);
+        for (int i = elites; i < sz; i++)
         {
             if (excess[i])
-                continue;
-            if (top < i)
-                pop[top] = std::move(pop[i]);
-            top++;
+                iter = pop.erase(iter);
+            else
+                ++iter;
         }
-        pop.erase(pop.begin() + n, pop.end());
     }
 
     void EvolutionStep(int noLuckyChromosomes, int childrenPerCouple,
-                       int elites, float mutationChance, int mutationMax)
+                       int elites, int minMutationCount, int mutationMax)
     {
         Crossover(noLuckyChromosomes, childrenPerCouple);
-        SortByFitnessDecreasing();
-        Mutate(elites, mutationChance, mutationMax);
+        Mutate(minMutationCount, mutationMax);
         KillExcess(elites);
     }
 
-    const vector<Chromosome>& AllChromosomes() const
+    const set<Chromosome, FitnessComparator>& AllChromosomes() const
     {
         return pop;
     }
 
     const Chromosome& Best() const
     {
-        return pop.front();
+        return *pop.begin();
     }
 };
 
@@ -794,14 +809,14 @@ int main()
     srand(clock());
     Sudoku sd;
     cin >> sd;
-    Population pop(100000, sd, 0.9, 4);
+    Population pop(10000, sd);
     cout << "Initial: " << pop.Best().Fitness() << endl;
     while (pop.Best().Fitness() != Chromosome::MaxFitness)
     {
-        pop.EvolutionStep(100, 5, 3, 0.8, 3);
+        pop.EvolutionStep(100, 5, 3, 5000, 3);
         cout << "\n\n" << pop.Best().Field() << '\n';
         cout << pop.Best().Fitness() << '-'
-             << pop.AllChromosomes().back().Fitness();
+             << pop.AllChromosomes().rbegin()->Fitness();
         cout.flush();
     }
 }
