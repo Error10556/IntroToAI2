@@ -809,7 +809,7 @@ int main()
     srand(clock());
     Sudoku sd;
     cin >> sd;
-    Population pop(10000, sd);
+    Population pop(50000, sd);
     cout << "Initial: " << pop.Best().Fitness() << endl;
     while (pop.Best().Fitness() != Chromosome::MaxFitness)
     {
