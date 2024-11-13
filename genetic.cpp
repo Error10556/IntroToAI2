@@ -2,6 +2,7 @@
 #include <bitset>
 #include <iostream>
 #include <numeric>
+#include <set>
 #include <vector>
 using namespace std;
 
@@ -38,6 +39,10 @@ public:
     const std::vector<int>& operator[](int row) const;
     std::bitset<10> Available(int row, int col) const;
     void FreezeAll();
+    const vector<vector<int>>& Data() const
+    {
+        return field;
+    }
 };
 
 Sudoku::DigitReference::DigitReference(int& ref) : ref(ref)
@@ -200,7 +205,7 @@ istream& operator>>(istream& in, Sudoku& s)
     return in;
 }
 
-int Choose2(int n)
+constexpr int Choose2(int n)
 {
     return n * (n - 1) / 2;
 }
@@ -238,20 +243,20 @@ private:
     }
     void SetDigitCount(int& digitcount, int val)
     {
-        errorpairs -= Choose2(digitcount);
-        errorpairs += Choose2(val);
+        errorcount -= max(0, digitcount - 1);
+        errorcount += max(0, val - 1);
         digitcount = val;
     }
     void IncreaseDigitCount(int& digitcount)
     {
-        errorpairs += digitcount++;
+        errorcount += digitcount++ > 0;
     }
     void DecreaseDigitCount(int& digitcount)
     {
-        errorpairs -= --digitcount;
+        errorcount -= digitcount-- > 1;
     }
     vector<vector<int>> rowcounts, colcounts, blockcounts;
-    int nonzeros, errorpairs;
+    int nonzeros, errorcount;
 
     static void RandomMutationIndices(int& no, int inds[9])
     {
@@ -283,6 +288,8 @@ public:
                 val = 0;
             auto cell = owner->field.Cell(y, x);
             int prv = cell;
+            if (prv == val)
+                return *this;
             int blk = Sudoku::BlockNo(y, x);
             if (prv != 0)
             {
@@ -298,11 +305,12 @@ public:
                 owner->IncreaseDigitCount(owner->blockcounts[blk][val]);
                 owner->nonzeros++;
             }
+            cell = val;
             return *this;
         }
     };
     Chromosome(const Sudoku& f)
-        : field(f), rowcounts(9, vector<int>(10)), nonzeros(0), errorpairs(0)
+        : field(f), rowcounts(9, vector<int>(10)), nonzeros(0), errorcount(0)
     {
         colcounts = blockcounts = rowcounts;
         for (int i = 0; i < 9; i++)
@@ -319,7 +327,7 @@ public:
         for (const auto& v : {rowcounts, colcounts, blockcounts})
             for (const vector<int>& cnts : v)
                 for (int cnt : cnts)
-                    errorpairs += Choose2(cnt);
+                    errorcount += max(0, cnt - 1);
     }
     const Sudoku& Field() const
     {
@@ -330,11 +338,15 @@ public:
         return DigitReference(this, row, col);
     }
     static constexpr int MaxFitness = 81;
-    // A number in [-891, 81] (where 81 = Chromosome::MaxFitness)
+    static constexpr int MinFitness = 2 - 5 - 2 - 10;
     // The empty sudoku has fitness 0
     int Fitness() const
     {
-        return nonzeros - errorpairs;
+        return nonzeros - 5 * !!errorcount - 2 * errorcount;
+    }
+    float NormFitness() const
+    {
+        return (Fitness() - MinFitness) / (float)(MaxFitness - MinFitness);
     }
     bool MutateGrow()
     {
@@ -478,6 +490,7 @@ public:
     }
     bool MutateSwap()
     {
+        return MutateSwapInBlock();
         vector<int> modes{0, 1, 2};
         swap(modes[0], modes[rand() % 3]);
         swap(modes[1], modes[rand() % 2 + 1]);
@@ -487,12 +500,15 @@ public:
             case 0:
                 if (MutateSwapInRow())
                     return true;
+                break;
             case 1:
                 if (MutateSwapInColumn())
                     return true;
+                break;
             case 2:
                 if (MutateSwapInBlock())
                     return true;
+                break;
             }
         return false;
     }
@@ -508,15 +524,19 @@ public:
             case 0:
                 if (MutateGrow())
                     return;
+                break;
             case 1:
                 if (MutateRemove())
                     return;
+                break;
             case 2:
                 if (MutateChange())
                     return;
+                break;
             case 3:
                 if (MutateSwap())
                     return;
+                break;
             }
     }
     void ColumnCrossover(const Chromosome& other)
@@ -557,6 +577,8 @@ public:
     }
     void Crossover(const Chromosome& other)
     {
+        BlockCrossover(other);
+        return;
         switch (rand() % 3)
         {
         case 0:
@@ -572,11 +594,214 @@ public:
     }
 };
 
+class FitSampler
+{
+    struct Node
+    {
+        int l, r;
+        int sum;
+        void Init(int i, int val)
+        {
+            l = i;
+            r = i + 1;
+            sum = val;
+        }
+        void Recalc(Node& left, Node& right)
+        {
+            sum = left.sum + right.sum;
+        }
+        void Merge(Node& left, Node& right)
+        {
+            l = left.l;
+            r = right.r;
+            Recalc(left, right);
+        }
+    };
+    vector<Node> st;
+    int start;
+
+public:
+    FitSampler(const vector<int>& fitnesses)
+    {
+        int n = fitnesses.size();
+        int sz = n & -n;
+        while (sz < n)
+            sz <<= 1;
+        st.resize(sz * 2 - 1);
+        start = sz - 1;
+        for (int i = 0; i < sz; i++)
+        {
+            Node& nd = st[start + i];
+            nd.Init(i, i < n ? fitnesses[i] : 0);
+        }
+        for (int i = start - 1; i >= 0; i--)
+            st[i].Merge(st[i * 2 + 1], st[i * 2 + 2]);
+    }
+    void SetWeight(int ind, int val)
+    {
+        ind += start;
+        val -= st[ind].sum;
+        st[ind].sum += val;
+        while (ind != 0)
+        {
+            ind = (ind - 1) / 2;
+            st[ind].sum += val;
+        }
+    }
+    int Sample()
+    {
+        if (st[0].sum == 0)
+            return -1;
+        int ind = rand() % st[0].sum;
+        int cur = 0;
+        while (cur < start)
+        {
+            cur = cur * 2 + 1;
+            if (ind >= st[cur].sum)
+            {
+                ind -= st[cur].sum;
+                cur++;
+            }
+        }
+        cur -= start;
+        SetWeight(cur, 0);
+        return cur;
+    }
+};
+
+class FitnessComparator
+{
+public:
+    bool operator()(const Chromosome& a, const Chromosome& b)
+    {
+        int afit = a.Fitness();
+        int bfit = b.Fitness();
+        if (afit != bfit)
+            return afit < bfit;
+        return a.Field().Data() < b.Field().Data();
+    }
+};
+
 class Population
 {
+    int n;
+    set<Chromosome> pop;
+
+    static bool TestChance(float chance)
+    {
+        return rand() / (double)RAND_MAX < chance;
+    }
+
+    static void MutateOne(Chromosome& ch, float mutationChance, int mutMax)
+    {
+        if (!TestChance(mutationChance))
+            return;
+        for (int i = rand() % mutMax; i; --i)
+            ch.Mutate();
+    }
+
+    void SortByFitnessDecreasing()
+    {
+        sort(pop.begin(), pop.end(),
+             [](const Chromosome& a, const Chromosome& b) {
+                 return a.Fitness() > b.Fitness();
+             });
+    }
+
+public:
+    Population(int n, const Sudoku& init)
+        : n(n)
+    {
+        pop.insert(Chromosome(init));
+    }
+
+    void Mutate(int elites, float mutationChance, int mutationMax)
+    {
+        for (int i = elites; i < pop.size(); i++)
+            MutateOne(pop[i], mutationChance, mutationMax);
+    }
+
+    void Crossover(int noLuckyChromosomes, int childrenPerCouple)
+    {
+        int sz = pop.size();
+        vector<int> fits(sz);
+        for (int i = 0; i < sz; i++)
+            fits[i] = pop[i].Fitness() - Chromosome::MinFitness +
+                      (Chromosome::MaxFitness - Chromosome::MinFitness) / 5;
+
+        FitSampler samp(fits);
+        pop.reserve(sz + noLuckyChromosomes * childrenPerCouple);
+        for (int i = 0; i < noLuckyChromosomes; i++)
+        {
+            int mother = samp.Sample();
+            if (mother == -1)
+                continue;
+            int father = rand() % sz;
+            for (int j = 0; j < childrenPerCouple; j++)
+                pop.emplace_back(pop[mother]).Crossover(pop[father]);
+        }
+    }
+
+    void KillExcess(int elites)
+    {
+        int sz = pop.size();
+        vector<int> fits(sz - elites);
+        for (int i = elites; i < sz; i++)
+            fits[i - elites] =
+                Chromosome::MaxFitness - pop[i].Fitness() +
+                (Chromosome::MaxFitness - Chromosome::MinFitness) / 5;
+        FitSampler samp(fits);
+        vector<bool> excess(sz);
+        for (int i = sz - n; i; --i)
+        {
+            int ind = samp.Sample() + elites;
+            if (ind != -1)
+                excess[ind] = true;
+        }
+        for (int top = 0, i = 0; top < n; i++)
+        {
+            if (excess[i])
+                continue;
+            if (top < i)
+                pop[top] = std::move(pop[i]);
+            top++;
+        }
+        pop.erase(pop.begin() + n, pop.end());
+    }
+
+    void EvolutionStep(int noLuckyChromosomes, int childrenPerCouple,
+                       int elites, float mutationChance, int mutationMax)
+    {
+        Crossover(noLuckyChromosomes, childrenPerCouple);
+        SortByFitnessDecreasing();
+        Mutate(elites, mutationChance, mutationMax);
+        KillExcess(elites);
+    }
+
+    const vector<Chromosome>& AllChromosomes() const
+    {
+        return pop;
+    }
+
+    const Chromosome& Best() const
+    {
+        return pop.front();
+    }
 };
 
 int main()
 {
     srand(clock());
+    Sudoku sd;
+    cin >> sd;
+    Population pop(100000, sd, 0.9, 4);
+    cout << "Initial: " << pop.Best().Fitness() << endl;
+    while (pop.Best().Fitness() != Chromosome::MaxFitness)
+    {
+        pop.EvolutionStep(100, 5, 3, 0.8, 3);
+        cout << "\n\n" << pop.Best().Field() << '\n';
+        cout << pop.Best().Fitness() << '-'
+             << pop.AllChromosomes().back().Fitness();
+        cout.flush();
+    }
 }

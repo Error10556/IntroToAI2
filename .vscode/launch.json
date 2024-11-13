@@ -8,13 +8,7 @@
             "preLaunchTask": "Compile",
             "postDebugTask": "Clean",
             "expressions": "native",
-            "program": "${workspaceFolder}/${fileBasenameNoExtension}",
-            "args": [
-                "tests",
-                "50",
-                "20",
-                "40"
-            ]
+            "program": "${workspaceFolder}/${fileBasenameNoExtension}"
         }
     ]
 }
