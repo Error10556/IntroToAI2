@@ -813,10 +813,17 @@ int main()
     cout << "Initial: " << pop.Best().Fitness() << endl;
     while (pop.Best().Fitness() != Chromosome::MaxFitness)
     {
-        pop.EvolutionStep(100, 5, 3, 5000, 3);
-        cout << "\n\n" << pop.Best().Field() << '\n';
-        cout << pop.Best().Fitness() << '-'
-             << pop.AllChromosomes().rbegin()->Fitness();
+        pop.EvolutionStep(100, 5, 3, 10000, 3);
+        auto best = pop.Best();
+        int noBest = 0;
+        auto all = pop.AllChromosomes();
+        auto iter = all.begin();
+        for (; iter != all.end() && iter->Fitness() == best.Fitness();
+             ++iter, noBest++)
+            ;
+        cout << "\n\n" << pop.Best().Field();
+        cout << best.Fitness() << '/' << Chromosome::MaxFitness << " ("
+             << noBest << ")\n";
         cout.flush();
     }
 }
