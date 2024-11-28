@@ -1,5 +1,7 @@
 #include <algorithm>
+#include <array>
 #include <bitset>
+#include <cstring>
 #include <iostream>
 #include <iterator>
 #include <numeric>
@@ -7,86 +9,375 @@
 #include <vector>
 using namespace std;
 
+class DigitCounter
+{
+    unsigned char counts[5]{};
+    unsigned char excessCounts = 0, errorPairs = 0;
+    static inline unsigned char Excess(unsigned char cnt)
+    {
+        return cnt - !!cnt;
+    }
+    static inline unsigned char ErrorPairs(unsigned char cnt)
+    {
+        return (cnt * (cnt - 1)) >> 1;
+    }
+    inline unsigned char& Dest(int num)
+    {
+        return counts[num >> 1];
+    }
+    static inline unsigned char GetEven(unsigned char src)
+    {
+        return src & 0xF;
+    }
+    static inline unsigned char GetOdd(unsigned char src)
+    {
+        return src >> 4;
+    }
+    static inline void SetEven(unsigned char& dest, unsigned char cnt)
+    {
+        dest = 0xF0 & dest | (cnt & 0xF);
+    }
+    static inline void SetOdd(unsigned char& dest, unsigned char cnt)
+    {
+        dest = 0xF & dest | ((cnt & 0xF) << 4);
+    }
+
+public:
+    inline void Set(int num, unsigned char cnt)
+    {
+        unsigned char& dest = Dest(num);
+        if (num & 1)
+        {
+            excessCounts -= Excess(GetOdd(dest));
+            errorPairs -= ErrorPairs(GetOdd(dest));
+            SetOdd(dest, cnt);
+        }
+        else
+        {
+            if (num)
+            {
+                excessCounts -= Excess(GetEven(dest));
+                errorPairs -= ErrorPairs(GetEven(dest));
+            }
+            SetEven(dest, cnt);
+        }
+        if (num)
+        {
+            excessCounts += Excess(cnt);
+            errorPairs += ErrorPairs(cnt);
+        }
+    }
+    inline unsigned char Get(int num) const
+    {
+        unsigned char src = counts[num >> 1];
+        if (num & 1)
+            return GetOdd(src);
+        return GetEven(src);
+    }
+    inline bitset<10> NonzeroMap() const
+    {
+        int res = 0;
+        for (int i = 4; i >= 0; i--)
+        {
+            unsigned char cnt = counts[i];
+            res = (res << 2) | ((!!(cnt & 0xF0)) << 1) | (!!(cnt & 0xF));
+        }
+        return res;
+    }
+    inline void Add(int num, unsigned char d)
+    {
+        Set(num, Get(num) + d);
+    }
+    inline void Inc(int num)
+    {
+        unsigned char& dest = Dest(num);
+        if (num & 1)
+        {
+            excessCounts += !!(dest & 0xF0);
+            errorPairs += dest >> 4;
+            dest += 0x10;
+        }
+        else
+        {
+            if (num)
+            {
+                excessCounts += !!(dest & 0xF);
+                errorPairs += dest & 0xF;
+            }
+            dest++;
+            dest -= 0x10 * !(dest & 0xF);
+        }
+    }
+    inline void Dec(int num)
+    {
+        unsigned char& dest = Dest(num);
+        if (num & 1)
+        {
+            dest -= 0x10;
+            excessCounts -= !!(dest & 0xF0);
+            errorPairs -= dest >> 4;
+        }
+        else
+        {
+            dest += 0x10 * !(dest & 0xF);
+            dest--;
+            if (num)
+            {
+                excessCounts -= !!(dest & 0xF);
+                errorPairs -= dest & 0xF;
+            }
+        }
+    }
+    inline int ErrorPairs() const
+    {
+        return errorPairs;
+    }
+    inline int ExcessCounts() const
+    {
+        return excessCounts;
+    }
+};
+
+class HashValue
+{
+public:
+    static constexpr int mod = (int)1e9 + 7;
+    static constexpr inline int modadd(int a, int b)
+    {
+        return (a + b) % mod;
+    }
+    static constexpr inline int modsub(int a, int b)
+    {
+        return (a - b + mod) % mod;
+    }
+    static constexpr inline int modmul(int a, int b)
+    {
+        return (long long)a * b % mod;
+    }
+
+private:
+    int val = 0;
+
+public:
+    constexpr HashValue(int val) : val((val % mod + mod) % mod)
+    {
+    }
+    constexpr HashValue()
+    {
+    }
+    constexpr HashValue& operator=(int val)
+    {
+        return *this = HashValue(val);
+    }
+    constexpr HashValue& operator+=(const HashValue& other)
+    {
+        val = modadd(val, other.val);
+        return *this;
+    }
+    constexpr HashValue& operator-=(const HashValue& other)
+    {
+        val = modsub(val, other.val);
+        return *this;
+    }
+    constexpr HashValue& operator*=(const HashValue& other)
+    {
+        val = modmul(val, other.val);
+        return *this;
+    }
+    constexpr HashValue operator-() const
+    {
+        return {mod - val};
+    }
+    constexpr bool operator==(const HashValue& other) const
+    {
+        return val == other.val;
+    }
+    constexpr bool operator!=(const HashValue& other) const
+    {
+        return val != other.val;
+    }
+    constexpr bool operator<(const HashValue& other) const
+    {
+        return val < other.val;
+    }
+    constexpr bool operator<=(const HashValue& other) const
+    {
+        return val <= other.val;
+    }
+    constexpr HashValue operator+(const HashValue& other) const
+    {
+        return {modadd(val, other.val)};
+    }
+    constexpr HashValue operator-(const HashValue& other) const
+    {
+        return {modsub(val, other.val)};
+    }
+    constexpr HashValue operator*(const HashValue& other) const
+    {
+        return {modmul(val, other.val)};
+    }
+    constexpr explicit operator int() const
+    {
+        return val;
+    }
+};
+
+template <int Coef, int Size> class ModPowers
+{
+private:
+    static constexpr std::array<HashValue, Size> GenerateModPowers()
+    {
+        std::array<HashValue, Size> powers;
+        powers[0] = 1;
+        for (int i = 1; i < Size; i++)
+            powers[i] = powers[i - 1] * Coef;
+        return powers;
+    }
+
+public:
+    static constexpr std::array<HashValue, Size> Powers = GenerateModPowers();
+};
+
 class Sudoku
 {
 public:
     struct DigitReference
     {
     private:
-        int& ref;
+        Sudoku& owner;
+        int index;
+        inline int& Ref();
 
     public:
-        DigitReference(int& ref);
+        DigitReference(Sudoku& owner, int index);
         DigitReference& operator=(int val);
         operator int();
     };
 
 private:
-    std::vector<std::vector<int>> field;
-    std::vector<std::vector<bool>> initial;
+    static constexpr int hashcoef = 10;
+    using Powers = ModPowers<hashcoef, 81>;
+
+    int field[9][9]{};
+    bitset<9> initial[9];
+    DigitCounter crows[9], ccols[9], cblocks[9];
+    int excessCounts = 0, errorPairs = 0;
+    int nonzeros = 0;
+    HashValue hashval;
 
 public:
-    static int BlockNo(int row, int col);
+    static constexpr int BlockNo(int row, int col);
     static void Block(int no, int& xstart, int& xend, int& ystart, int& yend);
     Sudoku();
     Sudoku(const std::vector<std::vector<int>>& field);
-    const std::vector<int>& Row(int row) const;
+    std::vector<int> Row(int row) const;
     std::vector<int> Column(int col) const;
     std::vector<int> Block(int no) const;
-    std::_Bit_reference Initial(int r, int c);
+    bitset<9>::reference Initial(int r, int c);
     bool Initial(int r, int c) const;
     DigitReference Cell(int r, int c);
     int Cell(int r, int c) const;
-    const std::vector<int>& operator[](int row) const;
+    const int* operator[](int row) const;
     std::bitset<10> Available(int row, int col) const;
     void FreezeAll();
-    const vector<vector<int>>& Data() const
+    int ErrorPairCount() const;
+    int ExcessCounts() const;
+    int NonzeroCount() const;
+    inline HashValue Hash() const
     {
-        return field;
+        return hashval;
     }
+    int Compare(const Sudoku& b) const;
+    bool operator<(const Sudoku& b) const;
+    bool operator==(const Sudoku& b) const;
+    bool operator!=(const Sudoku& b) const;
 };
 
-Sudoku::DigitReference::DigitReference(int& ref) : ref(ref)
+Sudoku::DigitReference::DigitReference(Sudoku& owner, int index)
+    : owner(owner), index(index)
 {
+}
+
+int& Sudoku::DigitReference::Ref()
+{
+    return owner.field[index / 9][index % 9];
 }
 
 Sudoku::DigitReference& Sudoku::DigitReference::operator=(int other)
 {
     if (other < 0 || other > 9)
         other = 0;
+    int& ref = Ref();
+    if (ref == other)
+        return *this;
+    owner.nonzeros -= !!ref;
+    int row = index / 9;
+    int col = index % 9;
+    int blk = Sudoku::BlockNo(row, col);
+    owner.errorPairs -= owner.crows[row].ErrorPairs() +
+                        owner.ccols[col].ErrorPairs() +
+                        owner.cblocks[blk].ErrorPairs();
+    owner.excessCounts -= owner.crows[row].ExcessCounts() +
+                          owner.ccols[col].ExcessCounts() +
+                          owner.cblocks[blk].ExcessCounts();
+    owner.crows[row].Dec(ref);
+    owner.ccols[col].Dec(ref);
+    owner.cblocks[blk].Dec(ref);
+    owner.hashval += Sudoku::Powers::Powers[index] * (other - ref);
     ref = other;
+    owner.crows[row].Inc(other);
+    owner.ccols[col].Inc(other);
+    owner.cblocks[blk].Inc(other);
+    owner.errorPairs += owner.crows[row].ErrorPairs() +
+                        owner.ccols[col].ErrorPairs() +
+                        owner.cblocks[blk].ErrorPairs();
+    owner.excessCounts += owner.crows[row].ExcessCounts() +
+                          owner.ccols[col].ExcessCounts() +
+                          owner.cblocks[blk].ExcessCounts();
+    owner.nonzeros += !!other;
     return *this;
 }
 
 Sudoku::DigitReference::operator int()
 {
-    return ref;
+    return Ref();
 }
 
-Sudoku::Sudoku() : field(9, vector<int>(9)), initial(9, vector<bool>(9))
+Sudoku::Sudoku()
 {
+    for (auto& cnt : crows)
+        cnt.Set(0, 9);
+    for (auto& cnt : ccols)
+        cnt.Set(0, 9);
+    for (auto& cnt : cblocks)
+        cnt.Set(0, 9);
 }
 
 Sudoku::Sudoku(const vector<vector<int>>& f)
-    : field(9, vector<int>(9)), initial(9, vector<bool>(9))
 {
     for (int i = 0; i < 9; i++)
         for (int j = 0; j < 9; j++)
         {
             int src = f[i][j];
-            if (src <= 0 || src > 9)
-                continue;
-            field[i][j] = src;
-            initial[i][j] = true;
+            int& dest = field[i][j];
+            if (src > 0 && src <= 9)
+            {
+                dest = src;
+                initial[i][j] = true;
+            }
+            hashval += Powers::Powers[i * 9 + j] * dest;
+            crows[i].Inc(dest);
+            ccols[j].Inc(dest);
+            cblocks[BlockNo(i, j)].Inc(dest);
         }
 }
 
-const vector<int>& Sudoku::Row(int row) const
+vector<int> Sudoku::Row(int row) const
 {
-    return field[row];
+    return {field[row], field[row + 1]};
 }
 
-const vector<int>& Sudoku::operator[](int row) const
+const int* Sudoku::operator[](int row) const
 {
     return field[row];
 }
@@ -107,7 +398,7 @@ void Sudoku::Block(int no, int& xstart, int& xend, int& ystart, int& yend)
     yend = ystart + 3;
 }
 
-int Sudoku::BlockNo(int row, int col)
+constexpr int Sudoku::BlockNo(int row, int col)
 {
     return row / 3 * 3 + col / 3;
 }
@@ -124,7 +415,7 @@ vector<int> Sudoku::Block(int no) const
     return res;
 }
 
-_Bit_reference Sudoku::Initial(int r, int c)
+bitset<9>::reference Sudoku::Initial(int r, int c)
 {
     return initial[r][c];
 }
@@ -136,7 +427,7 @@ bool Sudoku::Initial(int r, int c) const
 
 Sudoku::DigitReference Sudoku::Cell(int r, int c)
 {
-    return DigitReference(field[r][c]);
+    return DigitReference(*this, r * 9 + c);
 }
 
 int Sudoku::Cell(int r, int c) const
@@ -146,20 +437,9 @@ int Sudoku::Cell(int r, int c) const
 
 bitset<10> Sudoku::Available(int row, int col) const
 {
-    bitset<10> res;
-    res.set();
-    res.reset(0);
-    for (int i : field[row])
-        res.reset(i);
-    for (int i = 0; i < 9; i++)
-        res.reset(field[i][col]);
-    int blk = BlockNo(row, col);
-    int xstart, xend, ystart, yend;
-    Block(blk, xstart, xend, ystart, yend);
-    for (int i = ystart; i < yend; i++)
-        for (int j = xstart; j < xend; j++)
-            res.reset(field[i][j]);
-    return res;
+    return ~(crows[row].NonzeroMap() | ccols[col].NonzeroMap() |
+             cblocks[BlockNo(row, col)].NonzeroMap()) &
+           ~bitset<10>(1);
 }
 
 void Sudoku::FreezeAll()
@@ -169,11 +449,51 @@ void Sudoku::FreezeAll()
             initial[i][j] = !!field[i][j];
 }
 
+int Sudoku::ErrorPairCount() const
+{
+    return errorPairs;
+}
+
+int Sudoku::ExcessCounts() const
+{
+    return excessCounts;
+}
+
+int Sudoku::NonzeroCount() const
+{
+    return nonzeros;
+}
+
+int Sudoku::Compare(const Sudoku& other) const
+{
+    HashValue ha = hashval, hb = other.hashval;
+    if (ha < hb)
+        return -1;
+    if (hb < ha)
+        return 1;
+    return memcmp(field, other.field, sizeof(field));
+}
+
+bool Sudoku::operator<(const Sudoku& other) const
+{
+    return Compare(other) < 0;
+}
+
+bool Sudoku::operator==(const Sudoku& other) const
+{
+    return Compare(other) == 0;
+}
+
+bool Sudoku::operator!=(const Sudoku& other) const
+{
+    return Compare(other);
+}
+
 ostream& operator<<(ostream& out, const Sudoku& s)
 {
     for (int i = 0; i < 9; i++)
     {
-        auto& row = s.Row(i);
+        const int* row = s[i];
         for (int j = 0; j < 9; j++)
         {
             if (j)
@@ -206,9 +526,14 @@ istream& operator>>(istream& in, Sudoku& s)
     return in;
 }
 
-constexpr int Choose2(int n)
+template <int Size> int ChooseBit(bitset<Size> avail)
 {
-    return n * (n - 1) / 2;
+    int n = avail.count();
+    n = rand() % n;
+    size_t cur = avail._Find_first();
+    for (; n; --n)
+        cur = avail._Find_next(cur);
+    return cur;
 }
 
 class Chromosome
@@ -242,22 +567,6 @@ private:
             return !field.Initial(y, x) && field[y][x];
         });
     }
-    void SetDigitCount(int& digitcount, int val)
-    {
-        errorcount -= max(0, digitcount - 1);
-        errorcount += max(0, val - 1);
-        digitcount = val;
-    }
-    void IncreaseDigitCount(int& digitcount)
-    {
-        errorcount += digitcount++ > 0;
-    }
-    void DecreaseDigitCount(int& digitcount)
-    {
-        errorcount -= digitcount-- > 1;
-    }
-    vector<vector<int>> rowcounts, colcounts, blockcounts;
-    int nonzeros, errorcount;
 
     static void RandomMutationIndices(int& no, int inds[9])
     {
@@ -268,86 +577,25 @@ private:
     }
 
 public:
-    struct DigitReference
+    Chromosome(const Sudoku& f) : field(f)
     {
-    private:
-        Chromosome* owner;
-        int x, y;
-
-    public:
-        DigitReference(Chromosome* owner, int y, int x)
-            : owner(owner), x(x), y(y)
-        {
-        }
-        operator int() const
-        {
-            return owner->field[y][x];
-        }
-        DigitReference& operator=(int val)
-        {
-            if (val < 0 || val > 9)
-                val = 0;
-            auto cell = owner->field.Cell(y, x);
-            int prv = cell;
-            if (prv == val)
-                return *this;
-            int blk = Sudoku::BlockNo(y, x);
-            if (prv != 0)
-            {
-                owner->DecreaseDigitCount(owner->rowcounts[y][prv]);
-                owner->DecreaseDigitCount(owner->colcounts[x][prv]);
-                owner->DecreaseDigitCount(owner->blockcounts[blk][prv]);
-                owner->nonzeros--;
-            }
-            if (val != 0)
-            {
-                owner->IncreaseDigitCount(owner->rowcounts[y][val]);
-                owner->IncreaseDigitCount(owner->colcounts[x][val]);
-                owner->IncreaseDigitCount(owner->blockcounts[blk][val]);
-                owner->nonzeros++;
-            }
-            cell = val;
-            return *this;
-        }
-    };
-    Chromosome(const Sudoku& f)
-        : field(f), rowcounts(9, vector<int>(10)), nonzeros(0), errorcount(0)
-    {
-        colcounts = blockcounts = rowcounts;
-        for (int i = 0; i < 9; i++)
-            for (int j = 0; j < 9; j++)
-            {
-                int dig = field[i][j];
-                if (!dig)
-                    continue;
-                nonzeros++;
-                rowcounts[i][dig]++;
-                colcounts[j][dig]++;
-                blockcounts[Sudoku::BlockNo(i, j)][dig]++;
-            }
-        for (const auto& v : {rowcounts, colcounts, blockcounts})
-            for (const vector<int>& cnts : v)
-                for (int cnt : cnts)
-                    errorcount += max(0, cnt - 1);
     }
     const Sudoku& Field() const
     {
         return field;
     }
-    DigitReference Cell(int row, int col)
-    {
-        return DigitReference(this, row, col);
-    }
     static constexpr int MaxFitness = 81;
-    static constexpr int MinFitness = 2 - 5 - 2 - 10;
+    static constexpr int MinFitness = 81 - 27 * (9 * 8) / 2;
     // The empty sudoku has fitness 0
     int Fitness() const
     {
-        return nonzeros - 5 * !!errorcount - 2 * errorcount;
+        int badpairs = field.ErrorPairCount();
+        return field.NonzeroCount() - (!!badpairs) * 5 - badpairs;
     }
     float NormFitness() const
     {
-        return (Fitness() - MinFitness) / (float)(MaxFitness - MinFitness);
+        auto res = (Fitness() - MinFitness) / (float)(MaxFitness - MinFitness);
+        return res * res;
     }
     bool MutateGrow()
     {
@@ -369,11 +617,7 @@ public:
         }
         if (empty.empty())
             return false;
-        vector<int> digits;
-        for (int i = 1; i <= 9; i++)
-            if (avail.test(i))
-                digits.push_back(i);
-        Cell(p.first, p.second) = digits[rand() % digits.size()];
+        field.Cell(p.first, p.second) = ChooseBit<10>(avail);
         return true;
     }
     bool MutateRemove()
@@ -382,7 +626,7 @@ public:
         if (nonempty.empty())
             return false;
         auto p = nonempty[rand() % nonempty.size()];
-        Cell(p.first, p.second) = 0;
+        field.Cell(p.first, p.second) = 0;
         return true;
     }
     bool MutateChange()
@@ -392,23 +636,15 @@ public:
         {
             int ind = rand() % nonempty.size();
             auto p = nonempty[ind];
-            auto cell = Cell(p.first, p.second);
-            int val = cell;
-            cell = 0;
+            auto cell = field.Cell(p.first, p.second);
             auto avail = field.Available(p.first, p.second);
-            avail.reset(val);
             if (avail.none())
             {
                 nonempty[ind] = nonempty.back();
                 nonempty.pop_back();
-                cell = val;
                 continue;
             }
-            vector<int> av;
-            for (int i = 1; i <= 9; i++)
-                if (avail.test(i))
-                    av.push_back(i);
-            cell = av[rand() % av.size()];
+            cell = ChooseBit<10>(avail);
             return true;
         }
         return false;
@@ -428,8 +664,8 @@ public:
         auto pa = swappable[a];
         auto pb = swappable[b];
         int buf = field[pa.first][pa.second];
-        Cell(pa.first, pa.second) = field[pb.first][pb.second];
-        Cell(pb.first, pb.second) = buf;
+        field.Cell(pa.first, pa.second) = field[pb.first][pb.second];
+        field.Cell(pb.first, pb.second) = buf;
         return true;
     }
     bool MutateSwapInRow()
@@ -548,7 +784,7 @@ public:
         {
             int i = inds[k];
             for (int j = 0; j < 9; j++)
-                Cell(j, i) = other.field[j][i];
+                field.Cell(j, i) = other.field[j][i];
         }
     }
     void RowCrossover(const Chromosome& other)
@@ -559,7 +795,7 @@ public:
         {
             int i = inds[k];
             for (int j = 0; j < 9; j++)
-                Cell(i, j) = other.field[i][j];
+                field.Cell(i, j) = other.field[i][j];
         }
     }
     void BlockCrossover(const Chromosome& other)
@@ -573,7 +809,7 @@ public:
             Sudoku::Block(blk, xstart, xend, ystart, yend);
             for (int i = ystart; i < yend; i++)
                 for (int j = xstart; j < xend; j++)
-                    Cell(i, j) = other.field[i][j];
+                    field.Cell(i, j) = other.field[i][j];
         }
     }
     void Crossover(const Chromosome& other)
@@ -679,7 +915,7 @@ public:
         int bfit = b.Fitness();
         if (afit != bfit)
             return afit > bfit;
-        return a.Field().Data() < b.Field().Data();
+        return a.Field() < b.Field();
     }
 };
 
@@ -694,9 +930,18 @@ class Population
     }
 
 public:
-    Population(int n, const Sudoku& init) : n(n)
+    Population(int n, const Sudoku& init, int mutants, int mutations) : n(n)
     {
-        pop.insert(Chromosome(init));
+        auto ch = Chromosome(init);
+        pop.insert(ch);
+        while (mutants--)
+        {
+            auto nw = ch;
+            for (int i = 0; i < mutations; i++)
+                nw.Mutate();
+            pop.insert(nw);
+        }
+        KillExcess(1);
     }
 
     void Mutate(int minMutationCount, int mutationMax)
@@ -757,14 +1002,12 @@ public:
         if (sz <= n || elites >= sz)
             return;
         vector<int> fits(sz);
+        int mxFit = pop.begin()->Fitness();
         {
             auto iter = pop.begin();
             advance(iter, elites);
             for (int i = elites; i < sz; i++, ++iter)
-            {
-                fits[i] = Chromosome::MaxFitness - iter->Fitness() +
-                          (Chromosome::MaxFitness - Chromosome::MinFitness) / 5;
-            }
+                fits[i] = mxFit - iter->Fitness();
         }
         FitSampler samp(fits);
         vector<bool> excess(sz);
@@ -782,6 +1025,12 @@ public:
                 iter = pop.erase(iter);
             else
                 ++iter;
+        }
+        if (pop.size() > n)
+        {
+            auto iter = pop.begin();
+            advance(iter, n);
+            pop.erase(iter, pop.end());
         }
     }
 
@@ -804,16 +1053,47 @@ public:
     }
 };
 
-int main()
+int main(int argc, char** argv)
 {
+    bool verbose = false;
+    for (int i = 1; i < argc; i++)
+    {
+        char* str = argv[i];
+        if (strcmp(str, "--verbose") == 0)
+            verbose = true;
+    }
     srand(clock());
     Sudoku sd;
     cin >> sd;
-    Population pop(50000, sd);
-    cout << "Initial: " << pop.Best().Fitness() << endl;
-    while (pop.Best().Fitness() != Chromosome::MaxFitness)
+    const int PopulationMax = 300, MaxPatience = 4000;
+    int patience = MaxPatience;
+    Population pop(PopulationMax, sd, PopulationMax / 3, 20);
+    if (verbose)
+        cout << "Initial: " << pop.Best().Fitness() << endl;
+    Chromosome prevbest = Chromosome(sd);
+    int prevnbest = 0;
+    int prevfit = prevbest.Fitness();
+    int curfit = prevfit;
+    while (curfit != Chromosome::MaxFitness)
     {
-        pop.EvolutionStep(100, 5, 3, 10000, 3);
+        pop.EvolutionStep(PopulationMax / 10, 5, 3, PopulationMax / 2, 3);
+        curfit = pop.Best().Fitness();
+        if (curfit == prevfit)
+            patience--;
+        else
+            patience = MaxPatience;
+        if (patience == 0)
+        {
+            if (verbose)
+                cout << "Restarting..." << endl;
+            pop = Population(PopulationMax, sd, PopulationMax / 3, 20);
+            prevbest = pop.Best();
+            curfit = prevfit = prevbest.Fitness();
+            patience = MaxPatience;
+        }
+        prevfit = curfit;
+        if (!verbose)
+            continue;
         auto best = pop.Best();
         int noBest = 0;
         auto all = pop.AllChromosomes();
@@ -821,9 +1101,16 @@ int main()
         for (; iter != all.end() && iter->Fitness() == best.Fitness();
              ++iter, noBest++)
             ;
-        cout << "\n\n" << pop.Best().Field();
-        cout << best.Fitness() << '/' << Chromosome::MaxFitness << " ("
-             << noBest << ")\n";
-        cout.flush();
+        if (noBest != prevnbest || prevbest.Field() != best.Field())
+        {
+            cout << "\n\n" << pop.Best().Field();
+            cout << best.Fitness() << '/' << Chromosome::MaxFitness << " ("
+                 << noBest << ")\n";
+            cout.flush();
+            prevbest = best;
+            prevnbest = noBest;
+        }
     }
+    if (!verbose)
+        cout << pop.Best().Field();
 }
