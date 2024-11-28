@@ -13,5 +13,8 @@ dfssolver.bin: dfssolver.cpp sudokusolve.h sudoku.h sudokusolve.o sudoku.o
 genetic.bin: genetic.cpp
 	clang++ -std=c++20 -O2 genetic.cpp -o genetic.bin
 
+difficulty.bin: difficulty.cpp sudoku.o sudoku.h
+	clang++ -std=c++20 -O2 difficulty.cpp sudoku.o -o difficulty.bin
+
 clean:
 	rm *.o *.bin
