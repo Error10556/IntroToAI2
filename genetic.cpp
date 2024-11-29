@@ -4,10 +4,10 @@
 #include <cstring>
 #include <iostream>
 #include <iterator>
-#include <locale>
 #include <numeric>
 #include <set>
 #include <vector>
+#include <ctime>
 using namespace std;
 
 // A data structure that efficiently maintains the counts of digits in a single
@@ -695,14 +695,14 @@ public:
     // The theoretically best fitness
     static constexpr int MaxFitness = 81;
     // The theoretically worst fitness (see Fitness())
-    static constexpr int MinFitness = 81 - 27 * (9 * 8) / 2 - 5;
+    static constexpr int MinFitness = 81 - 27 * (9 * 8) / 2;
     // The empty sudoku has fitness 0
-    // fitness = (# of filled cells) - (5 points if there are errors) -
-    //  (# of distinct unordered pairs of cells that are in a conflict)
+    // fitness = (# of filled cells) - (# of distinct unordered pairs of cells
+    // that are in a conflict)
     int Fitness() const
     {
         int badpairs = field.ErrorPairCount();
-        return field.NonzeroCount() - (!!badpairs) * 5 - badpairs;
+        return field.NonzeroCount() - badpairs;
     }
     // Normalizes the fitness into the range [0, 1]
     float NormFitness() const
@@ -856,8 +856,9 @@ public:
     // Randomly mutate
     void Mutate()
     {
-        int modes[]{0, 1, 2, 3}; // grow, remove, change, swap
-        for (int i = 0; i < 3; i++)
+        // Do not remove
+        int modes[]{0, /*1, */ 2, 3}; // grow, remove, change, swap
+        for (int i = 0; i < sizeof(modes) / sizeof(modes[0]); i++)
             swap(modes[i],
                  modes[rand() % (sizeof(modes) / sizeof(int) - i) + i]);
         for (int mode : modes)
@@ -1090,9 +1091,15 @@ public:
         vector<int> fits(sz);
         vector<decltype(pop)::iterator> iters(sz);
         auto iter = pop.begin();
+        const int FitnessRange =
+            Chromosome::MaxFitness - Chromosome::MinFitness;
         for (int i = 0; i < sz; i++, ++iter)
         {
-            fits[i] = iter->Fitness() - Chromosome::MinFitness;
+            int& curfit = fits[i];
+            // Punish lower fitnesses by squaring
+            curfit = iter->Fitness() - Chromosome::MinFitness;
+            curfit *= curfit;
+            curfit /= FitnessRange;
             iters[i] = iter;
         }
         // Build a cumulative sum array
@@ -1239,7 +1246,7 @@ int main(int argc, char** argv)
     Sudoku sd;
     cin >> sd;
     // If for 'MaxPatience' iterations we won't see any improvements, we retry
-    const int PopulationMax = 300, MaxPatience = 10000;
+    const int PopulationMax = 500, MaxPatience = 10000;
     int patience = MaxPatience;
     // Initialize the population
     Population pop(PopulationMax, sd, PopulationMax / 3, 20);
@@ -1254,7 +1261,7 @@ int main(int argc, char** argv)
     // Repeat until we find the solution
     while (curfit != Chromosome::MaxFitness)
     {
-        pop.EvolutionStep(PopulationMax / 10, 5, 3, PopulationMax, 3);
+        pop.EvolutionStep(PopulationMax / 10, 5, 3, PopulationMax * 2, 3);
         curfit = pop.Best().Fitness();
         if (curfit == prevfit)
             patience--;
