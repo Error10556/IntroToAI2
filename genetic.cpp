@@ -2,12 +2,12 @@
 #include <array>
 #include <bitset>
 #include <cstring>
+#include <ctime>
 #include <iostream>
 #include <iterator>
 #include <numeric>
 #include <set>
 #include <vector>
-#include <ctime>
 using namespace std;
 
 // A data structure that efficiently maintains the counts of digits in a single
@@ -1065,21 +1065,23 @@ class Population
     }
 
 public:
-    // Initialize the population: spawn 'mutants' mutants, each undergoes
-    // 'mutations' mutations
-    Population(int n, const Sudoku& init, int mutants, int mutations) : n(n)
+    // Initialize the population: add n random fillings of the sudoku
+    Population(int n, const Sudoku& init) : n(n)
     {
-        auto ch = Chromosome(init);
-        pop.insert(ch);
-        while (mutants--)
+        // Insert a random completion 'n' times. If some of those sudokus
+        // are the same, the set<...> will discard the duplicates,
+        // but we don't care
+        while (n--)
         {
-            auto nw = ch;
-            for (int i = 0; i < mutations; i++)
-                nw.Mutate();
-            pop.insert(nw);
+            Sudoku cur = init;
+            for (int i = 0; i < 9; i++)
+                for (int j = 0; j < 9; j++)
+                {
+                    if (!cur[i][j])
+                        cur.Cell(i, j) = rand() % 9 + 1;
+                }
+            pop.emplace(cur);
         }
-        // Remove some if there are too many
-        KillExcess(1);
     }
 
     // Mutate at least 'minMutationCount' chromosomes, but keep going until we
@@ -1249,7 +1251,7 @@ int main(int argc, char** argv)
     const int PopulationMax = 500, MaxPatience = 10000;
     int patience = MaxPatience;
     // Initialize the population
-    Population pop(PopulationMax, sd, PopulationMax / 3, 20);
+    Population pop(PopulationMax, sd);
     if (verbose)
         cout << "Initial: " << pop.Best().Fitness() << endl;
     Chromosome prevbest = Chromosome(sd);
@@ -1273,7 +1275,7 @@ int main(int argc, char** argv)
             if (verbose)
                 cout << "Restarting..." << endl;
             // Initialize everything again
-            pop = Population(PopulationMax, sd, PopulationMax / 3, 20);
+            pop = Population(PopulationMax, sd);
             prevbest = pop.Best();
             curfit = prevfit = prevbest.Fitness();
             patience = MaxPatience;
