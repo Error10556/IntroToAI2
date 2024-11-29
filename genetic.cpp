@@ -857,7 +857,6 @@ public:
     // Randomly mutate
     void Mutate()
     {
-        // Do not remove
         int modes[]{0, /*1, */ 2, 3}; // grow, remove, change, swap
         for (int i = 0; i < sizeof(modes) / sizeof(modes[0]); i++)
             swap(modes[i],
@@ -1140,7 +1139,7 @@ public:
             {
                 // Each one gets bonus points (+(max - min) / 5)
                 fits[i] = iter->Fitness() - Chromosome::MinFitness +
-                          (Chromosome::MaxFitness - Chromosome::MinFitness) / 5;
+                          (Chromosome::MaxFitness - Chromosome::MinFitness) / 9;
                 iters[i] = iter;
             }
         }
@@ -1181,8 +1180,15 @@ public:
             advance(iter, elites);
             // Chromosomes with low fitnesses are likely to be picked.
             // The best chromosomes are given weight 0.
+            // For diversity, we give bonus chances to all chromosomes
+            // that aren't the most fit.
             for (int i = elites; i < sz; i++, ++iter)
-                fits[i] = mxFit - iter->Fitness();
+            {
+                int& curfit = fits[i];
+                curfit = mxFit - iter->Fitness();
+                curfit += (!!curfit) *
+                          (Chromosome::MaxFitness - Chromosome::MinFitness) / 5;
+            }
         }
         FitSampler samp(fits);
         // We mark a chromosome i for death by setting excess[i] = true
@@ -1249,7 +1255,7 @@ int main(int argc, char** argv)
     Sudoku sd;
     cin >> sd;
     // If for 'MaxPatience' iterations we won't see any improvements, we retry
-    const int PopulationMax = 500, MaxPatience = 10000;
+    const int PopulationMax = 110, MaxPatience = 1000;
     int patience = MaxPatience;
     // Initialize the population
     Population pop(PopulationMax, sd);
@@ -1264,7 +1270,7 @@ int main(int argc, char** argv)
     // Repeat until we find the solution
     while (curfit != Chromosome::MaxFitness)
     {
-        pop.EvolutionStep(PopulationMax / 10, 5, 3, PopulationMax * 2, 3);
+        pop.EvolutionStep(PopulationMax * 2, 8, 3, PopulationMax * 3, 1);
         curfit = pop.Best().Fitness();
         if (curfit == prevfit)
             patience--;
