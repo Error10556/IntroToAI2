@@ -2,6 +2,7 @@
 #include <bits/stdc++.h>
 #include <chrono>
 #include <filesystem>
+#include <numeric>
 using namespace std;
 
 template<class T>
@@ -24,7 +25,22 @@ struct Stats
     double Max, Min, Mean, Median, SD;
     Stats(vector<double> v)
     {
-        
+        sort(v.begin(), v.end());
+        Max = v.back();
+        Min = v.front();
+        int n = v.size();
+        if (n & 1)
+            Median = v[n >> 1];
+        else
+            Median = (v[n >> 1] + v[(n >> 1) - 1]) / 2;
+        Mean = accumulate(v.begin(), v.end(), 0.0) / n;
+        SD = 0;
+        for (double i : v)
+        {
+            i -= Mean;
+            SD += i * i;
+        }
+        SD = sqrt(SD / (n - 1));
     }
 };
 
