@@ -1281,7 +1281,7 @@ int main(int argc, char** argv)
     Sudoku sd;
     cin >> sd;
     // If for 'MaxPatience' iterations we won't see any improvements, we retry
-    const int PopulationMax = 800, MaxPatience = 1000;
+    const int PopulationMax = 500, MaxPatience = 1000;
     int patience = MaxPatience;
     // Initialize the population
     Population pop(PopulationMax, sd);
