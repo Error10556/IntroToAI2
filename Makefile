@@ -16,5 +16,11 @@ genetic.bin: genetic.cpp
 difficulty.bin: difficulty.cpp sudoku.o sudoku.h
 	clang++ -std=c++20 -O2 difficulty.cpp sudoku.o -o difficulty.bin
 
+launcher.o: launcher.cpp
+	clang++ -std=c++20 -O2 -c launcher.cpp -o launcher.o
+
+benchmark.bin: launcher.o launcher.h benchmark.cpp
+	clang++ -std=c++20 -O2 launcher.o benchmark.cpp -o benchmark.bin
+
 clean:
 	rm *.o *.bin
