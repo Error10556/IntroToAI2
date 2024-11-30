@@ -378,6 +378,9 @@ public:
     // Returns true if the sudoku is equal to 'b'.
     bool operator==(const Sudoku& b) const;
     bool operator!=(const Sudoku& b) const;
+    inline const DigitCounter& BlockCounts(int block) const;
+    inline const DigitCounter& RowCounts(int row) const;
+    inline const DigitCounter& ColumnCounts(int column) const;
 };
 
 Sudoku::DigitReference::DigitReference(Sudoku& owner, int index)
@@ -584,6 +587,21 @@ bool Sudoku::operator!=(const Sudoku& other) const
     return Compare(other);
 }
 
+const DigitCounter& Sudoku::BlockCounts(int block) const
+{
+    return cblocks[block];
+}
+
+const DigitCounter& Sudoku::RowCounts(int row) const
+{
+    return crows[row];
+}
+
+const DigitCounter& Sudoku::ColumnCounts(int col) const
+{
+    return ccols[col];
+}
+
 // Outputs the field
 ostream& operator<<(ostream& out, const Sudoku& s)
 {
@@ -696,14 +714,12 @@ public:
     // The theoretically best fitness
     static constexpr int MaxFitness = 81;
     // The theoretically worst fitness (see Fitness())
-    static constexpr int MinFitness = 81 - 27 * (9 * 8) / 2;
+    static constexpr int MinFitness = 81 - 8 * 27;
     // The empty sudoku has fitness 0
-    // fitness = (# of filled cells) - (# of distinct unordered pairs of cells
-    // that are in a conflict)
+    // fitness = (# of filled cells) - (# of duplicates)
     int Fitness() const
     {
-        int badpairs = field.ErrorPairCount();
-        return field.NonzeroCount() - badpairs;
+        return field.NonzeroCount() - field.ExcessCounts();
     }
     // Normalizes the fitness into the range [0, 1]
     float NormFitness() const
@@ -857,7 +873,12 @@ public:
     // Randomly mutate
     void Mutate()
     {
-        int modes[]{0, /*1, */ 2, 3}; // grow, remove, change, swap
+        // All mutations are swaps within one block. All code after 'return;'
+        // is ignored.
+        MutateSwapInBlock();
+        return;
+        // The following code randomly chooses one way to mutate the chromosome.
+        int modes[]{0, 1, 2, 3}; // grow, remove, change, swap
         for (int i = 0; i < sizeof(modes) / sizeof(modes[0]); i++)
             swap(modes[i],
                  modes[rand() % (sizeof(modes) / sizeof(int) - i) + i]);
@@ -1071,15 +1092,25 @@ public:
         // Insert a random completion 'n' times. If some of those sudokus
         // are the same, the set<...> will discard the duplicates,
         // but we don't care
+        // Criterion: all blocks must be correct.
         while (n--)
         {
             Sudoku cur = init;
-            for (int i = 0; i < 9; i++)
-                for (int j = 0; j < 9; j++)
-                {
-                    if (!cur[i][j])
-                        cur.Cell(i, j) = rand() % 9 + 1;
-                }
+            for (int blk = 0; blk < 9; blk++)
+            {
+                int x1, x2, y1, y2;
+                Sudoku::Block(blk, x1, x2, y1, y2);
+                bitset<10> avail = ~cur.BlockCounts(blk).NonzeroMap();
+                avail.reset(0);
+                for (int x = x1; x < x2; x++)
+                    for (int y = y1; y < y2; y++)
+                        if (!cur.Initial(y, x))
+                        {
+                            int num = ChooseBit<10>(avail);
+                            avail.reset(num);
+                            cur.Cell(y, x) = num;
+                        }
+            }
             pop.emplace(cur);
         }
     }
@@ -1098,10 +1129,7 @@ public:
         for (int i = 0; i < sz; i++, ++iter)
         {
             int& curfit = fits[i];
-            // Punish lower fitnesses by squaring
-            curfit = iter->Fitness() - Chromosome::MinFitness;
-            curfit *= curfit;
-            curfit /= FitnessRange;
+            curfit = (iter->Fitness() - Chromosome::MinFitness) / 3 + 1;
             iters[i] = iter;
         }
         // Build a cumulative sum array
@@ -1112,7 +1140,7 @@ public:
             // Pick a chromosome to mutate
             int rnd = rand() % fits.back();
             int ind = upper_bound(fits.begin(), fits.end(), rnd) - fits.begin();
-            auto iter = iters[rand() % sz];
+            auto iter = iters[ind];
             // The mutant
             Chromosome mut = *iter;
             for (int i = rand() % mutationMax + 1; i; --i)
@@ -1137,7 +1165,7 @@ public:
             auto iter = pop.begin();
             for (int i = 0; i < sz; i++, iter++)
             {
-                // Each one gets bonus points (+(max - min) / 5)
+                // Each one gets bonus points (+(max - min) / 9)
                 fits[i] = iter->Fitness() - Chromosome::MinFitness +
                           (Chromosome::MaxFitness - Chromosome::MinFitness) / 9;
                 iters[i] = iter;
@@ -1150,7 +1178,7 @@ public:
             // Pick a mother
             int mother = samp.Sample();
             if (mother == -1)
-                continue;
+                break;
             // Pick a father randomly, but it must be a different chromosome
             int father = rand() % (sz - 1);
             father += father >= mother;
@@ -1180,14 +1208,12 @@ public:
             advance(iter, elites);
             // Chromosomes with low fitnesses are likely to be picked.
             // The best chromosomes are given weight 0.
-            // For diversity, we give bonus chances to all chromosomes
-            // that aren't the most fit.
+            // For diversity, we give bonus chances to all chromosomes.
             for (int i = elites; i < sz; i++, ++iter)
             {
                 int& curfit = fits[i];
-                curfit = mxFit - iter->Fitness();
-                curfit += (!!curfit) *
-                          (Chromosome::MaxFitness - Chromosome::MinFitness) / 5;
+                curfit = mxFit - iter->Fitness() +
+                         (Chromosome::MaxFitness - Chromosome::MinFitness) / 3;
             }
         }
         FitSampler samp(fits);
@@ -1255,7 +1281,7 @@ int main(int argc, char** argv)
     Sudoku sd;
     cin >> sd;
     // If for 'MaxPatience' iterations we won't see any improvements, we retry
-    const int PopulationMax = 110, MaxPatience = 1000;
+    const int PopulationMax = 800, MaxPatience = 1000;
     int patience = MaxPatience;
     // Initialize the population
     Population pop(PopulationMax, sd);
@@ -1270,7 +1296,8 @@ int main(int argc, char** argv)
     // Repeat until we find the solution
     while (curfit != Chromosome::MaxFitness)
     {
-        pop.EvolutionStep(PopulationMax * 2, 8, 3, PopulationMax * 3, 1);
+        pop.EvolutionStep(PopulationMax / 3, 4, PopulationMax / 5,
+                          PopulationMax, 5);
         curfit = pop.Best().Fitness();
         if (curfit == prevfit)
             patience--;
