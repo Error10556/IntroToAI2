@@ -5,6 +5,7 @@
 \usepackage{longtable}
 \usepackage{multirow}
 \usepackage{listings}
+\usepackage{tabularx}
 
 \lstdefinestyle{lststyle}{numbers=left, escapechar=`}
 \lstdefinelanguage{pseu}{keywords={if,for,while,and,procedure,Sudoku,repeat,times,
@@ -31,7 +32,8 @@ From here, we will call a subgrid of $3\times3$ cells a \textit{block}.
 \subsection{General algorthim flow}\label{flowlisting}
 
 For this task, I decided to implement a Genetic Algorithm, which is a kind of evolutionary algorithms.
-The following pseudocode represents the actual execution steps of the program.
+The following pseudocode represents the actual execution steps of the program. For definitions and
+concrete values of constants used in the code, refer to Table \ref{paramtable}.
 
 \begin{lstlisting}[language=pseu, style=lststyle]
 procedure main
@@ -78,7 +80,7 @@ procedure select(population: Population)
     mxFit := fitness(population.best)
     while population.size > nMaxPopulation and population.size > nElites:
         victim := choose a Chromosome that is not in the top-(nElites) randomly
-                with weights = (mxFit - fitness + `$\frac13$`fitness\_range)
+                with weights = (mxFit - fitness + `$\frac13$`fitness_range)
         population.remove(victim)
     while population.size > nMaxPopulation
         population.remove(population.worst)
@@ -200,7 +202,7 @@ contradict our motivation for using a lenient fitness function (see Sec. \ref{fi
 at the final iterations, which could cause convergence to local maxima. However,
 the advantage of performance boost at early iterations outweighs this drawback.
 
-\subsection{Crossover}
+\subsubsection{Crossover}
 Again, no crossover should be able to create a contradiction within a block. Therefore,
 we only cross chromosomes over via borrowing whole blocks from the parents.
 
@@ -217,14 +219,39 @@ When choosing the first parent (the one chosen with weighted randomness), we do
 not want to completely exclude the chromosomes with low fitness. Therefore, the
 weights assigned to the chromosomes are increased by $\frac19$ of the fitness range ($\frac19\cdot216=24$).
 
-\subsection{Selection}
+\subsubsection{Selection}
 We generally want to discard the unfit chromosomes, that is why we assign more
 weight and are likely to remove those which differ from the current maximum more.
 To increase randomness and diversity among chromosomes, we add $\frac13$ of the
 fitness range ($\frac13\cdot216=72$) to the weights.
 
-However, we have to preserve the best
+However, we have to preserve some amount of the most fit chromosomes, so we always
+leave \texttt{nElites} ones at the top, unless no more ``non-elite'' chromosomes
+are left to discard.
 
-\section{stats}\label{stats}
+\subsection{Parameters}
+
+\begin{table}[!h]
+    \begin{center}
+        \begin{tabularx}{0.9\textwidth}{|>{\centering\arraybackslash}X|c|c|c|}
+        \hline
+        \textbf{Parameter definition} & \textbf{Name} & \textbf{Code name} & \textbf{Value} \\\hline
+        The maximum number of iterations that do not improve the best fitness & \texttt{MaxPatience} & \texttt{MaxPatience} & 1000 \\\hline
+        The maximum and preferred number of chromosomes in the population & \texttt{nMaxPopulation} & \texttt{MaxPopulation} & 500 \\\hline
+        The number of times a pair of chromosomes is chosen for a crossover & \texttt{nCrossovers} & \texttt{noLuckyChromosomes} & 166 \\\hline
+        The minimum number of mutants entering the population each iteration & \texttt{nMutants} & \texttt{minMutationCount} & 500 \\\hline
+        The upper bound for the number of mutations per mutant & \texttt{nMutations} & \texttt{mutationMax} & 5 \\\hline
+        The number of best chromosomes never discarded & \texttt{nElites} & \texttt{elites} & 100 \\\hline
+    \end{tabularx}
+    \end{center}
+    \caption{Constant parameters used by the algorithm}\label{paramtable}
+\end{table}
+
+Table \ref{paramtable} contains the definitions, names (in the report and in the code),
+and the values of parameters that regulate the intensity of some operations. The
+values have been determined to be near-optimal empirically.
+
+\section{Statistics}
+This section lists the maximum and the average 
 
 \end{document}
