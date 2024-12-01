@@ -61,7 +61,6 @@ pid_t Process::PID() const
 int Process::Wait()
 {
     int stat;
-    CloseAll();
     waitpid(child, &stat, 0);
     terminated = true;
     return stat;
@@ -69,15 +68,13 @@ int Process::Wait()
 
 void Process::Kill()
 {
-    CloseAll();
     kill(child, SIGKILL);
     terminated = true;
 }
 
 Process::~Process()
 {
-    if (!terminated)
-        CloseAll();
+    CloseAll();
 }
 
 void Process::CloseAll()
