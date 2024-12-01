@@ -6,7 +6,8 @@ using namespace std;
 
 struct Stats
 {
-    int Max, Avg;
+    int Max;
+    double Avg;
 };
 
 int main(int argc, char** argv)
