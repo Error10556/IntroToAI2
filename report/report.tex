@@ -6,6 +6,7 @@
 \usepackage{multirow}
 \usepackage{listings}
 \usepackage{tabularx}
+\usepackage{multicol}
 
 \lstdefinestyle{lststyle}{numbers=left, escapechar=`}
 \lstdefinelanguage{pseu}{keywords={if,for,while,and,procedure,Sudoku,repeat,times,
@@ -31,7 +32,7 @@ From here, we will call a subgrid of $3\times3$ cells a \textit{block}.
 
 \subsection{General algorthim flow}\label{flowlisting}
 
-For this task, I decided to implement a Genetic Algorithm, which is a kind of evolutionary algorithms.
+For this task, I decided to implement a Genetic Algorithm (GA), which is a kind of evolutionary algorithms.
 The following pseudocode represents the actual execution steps of the program. For definitions and
 concrete values of constants used in the code, refer to Table \ref{paramtable}.
 
@@ -252,6 +253,60 @@ and the values of parameters that regulate the intensity of some operations. The
 values have been determined to be near-optimal empirically.
 
 \section{Statistics}
-This section lists the maximum and the average 
+This section lists the maximum and the average chromosome fitnesses at the
+last iterations of the genetic algorithm.
+
+\subsection{Test cases}
+The solution has been tested on 180 tests: 10 tests per each difficulty level, of
+which there were 18. The \textit{difficulty level} of a test case is considered
+to be the number of initially given digits. The lowest number of given digits
+I could find is 23, so the levels' range is $[23..40]$.
+
+The test cases can be found at \url{https://github.com/Error10556/IntroToAI2/tree/main/tests10}.
+The files follow a naming convention \texttt{testXX-YY}, where \texttt{XX} is the number
+of initially given digits and \texttt{YY} is the test case index within that difficulty.
+
+\subsection{Results}
+
+Obviously, in the present case, the maximum fitness at the last iteration is going to be 81, which
+is confirmed by every program execution.
+
+\begin{table}[t]
+    \begin{center}
+        \begin{tabular}{|c|c|c|c|c|c|c|c|c|c|c|c|}
+            \hline
+            \multirow{2}{2.25cm}{Difficulty level} & \multicolumn{10}{c|}{Test case} & \multirow{2}{1.3cm}{Mean} \\\cline{2-11}
+            & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 &\\\hline
+            23 & 68.824 & 67.746 & 67.198 & 68.534 & 67.99 & 67.702 & 67.252 & 67.31 & 67.598 & 67.806 & 67.796\\\hline
+            24 & 68.16 & 68.22 & 67.076 & 67.732 & 66.544 & 67.564 & 66.904 & 68.342 & 66.426 & 69.254 & 67.6222\\\hline
+            25 & 67.29 & 67.3 & 67.744 & 67.874 & 66.886 & 68.54 & 67.238 & 67.698 & 67.166 & 67.302 & 67.5038\\\hline
+            26 & 68.58 & 66.708 & 67.588 & 68.042 & 67.576 & 68.122 & 66.952 & 67.446 & 67.98 & 67.512 & 67.6506\\\hline
+            27 & 67.572 & 67.438 & 68.722 & 67.656 & 67.404 & 67.736 & 68.618 & 67.256 & 67.64 & 67.59 & 67.7632\\\hline
+            28 & 67.888 & 67.93 & 67.168 & 67.168 & 67.142 & 67.776 & 68.244 & 67.204 & 67.054 & 67.204 & 67.4778\\\hline
+            29 & 66.054 & 65.842 & 67.896 & 67.822 & 67.928 & 67.056 & 67.43 & 68.47 & 68.102 & 67.802 & 67.4402\\\hline
+            30 & 66.606 & 67.77 & 68.188 & 68.796 & 68.252 & 69.356 & 67.886 & 68.174 & 68.178 & 66.91 & 68.0116\\\hline
+            31 & 67.67 & 67.684 & 67.054 & 68.424 & 68.052 & 69.312 & 68.312 & 68.504 & 68.092 & 68.106 & 68.121\\\hline
+            32 & 68.26 & 67.514 & 67.39 & 67.434 & 68.554 & 69.266 & 68.124 & 67.96 & 66.134 & 67.29 & 67.7926\\\hline
+            33 & 67.258 & 68.478 & 67.562 & 68.162 & 68.938 & 67.532 & 68.374 & 68.186 & 68.008 & 67.894 & 68.0392\\\hline
+            34 & 68.814 & 67.814 & 67.058 & 68.176 & 67.972 & 68.834 & 66.898 & 68.642 & 67.954 & 68.414 & 68.0576\\\hline
+            35 & 67.552 & 68.55 & 68.092 & 68.142 & 67.318 & 67.878 & 67.888 & 67.084 & 68.254 & 68.97 & 67.9728\\\hline
+            36 & 68.272 & 68.042 & 68.936 & 68.742 & 68.404 & 68.55 & 68.654 & 67.65 & 68.654 & 68.63 & 68.4534\\\hline
+            37 & 68.488 & 67.96 & 67.324 & 67.944 & 67.328 & 66.52 & 68.25 & 68.458 & 67.802 & 67.434 & 67.7508\\\hline
+            38 & 68.118 & 67.106 & 67.584 & 68.172 & 66.894 & 68.12 & 68.172 & 68.828 & 67.594 & 67.988 & 67.8576\\\hline
+            39 & 68.07 & 67.88 & 68.114 & 67.594 & 67.102 & 67.03 & 68.094 & 67.922 & 68.34 & 68.168 & 67.8314\\\hline
+            40 & 68.254 & 68.55 & 68.048 & 68.354 & 68.492 & 68.836 & 65.944 & 68.32 & 68.08 & 66.908 & 67.9786\\\hline
+        \end{tabular}
+    \end{center}
+    \caption{The average chromosome fitnesses and the mean average for each difficulty}\label{tableavg}
+\end{table}
+
+The averages of fitnesses on last iterations can be found in Table \ref{tableavg}.
+
+\begin{figure}[t]
+    \begin{center}
+
+    \end{center}
+    \caption{The plot of averages of average fitnesses and maximum fitnesses at every difficulty}
+\end{figure}
 
 \end{document}
