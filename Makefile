@@ -22,5 +22,8 @@ launcher.o: launcher.cpp
 benchmark.bin: launcher.o launcher.h benchmark.cpp
 	clang++ -std=c++20 -O2 launcher.o benchmark.cpp -o benchmark.bin
 
+givens.bin: givens.cpp
+	clang++ -std=c++20 -O2 givens.cpp -o givens.bin
+
 clean:
 	rm *.o *.bin

@@ -78,9 +78,9 @@ int main(int argc, char** argv)
         string testFilename = entry.filename().string();
         cout << "Testing on " << testFilename << "..." << endl;
         vector<double>& curBenchmarks = benchmarks[testFilename];
-        for (int i = 0; i < repeats; i++)
+        cout << '\r' << "0/" << repeats;
+        for (int i = 1; i <= repeats; i++)
         {
-            cout << '\r' << i << '/' << repeats;
             cout.flush();
             Process proc(progFilename, {}, {});
             fputs(testcase.c_str(), proc.StdIN());
@@ -91,6 +91,7 @@ int main(int argc, char** argv)
             using frac = decltype(dur)::period;
             curBenchmarks.push_back(dur.count() * frac::num /
                                     (double)frac::den);
+            cout << '\r' << i << '/' << repeats;
         }
         cout << endl;
     }
