@@ -81,7 +81,7 @@ int main(int argc, char** argv)
         }
         double n = p.second.size();
         cout << "\"Max\": " << smax / n << ", \"Avg\": " << savg / n << ", ";
-        cout << "Avgs: [";
+        cout << "\"Avgs\": [";
         bool first = true;
         for (auto& s : p.second)
         {
