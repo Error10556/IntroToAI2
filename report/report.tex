@@ -93,7 +93,7 @@ and reduces the population until the solution is found or there have been no
 improvements for some time, in which case the program restarts.
 
 \subsection{Weighted random choice optimization}
-To efficiently choose several \textit{distinct} elements from a set at random while also
+To efficiently (i.e. in $O(\log n)$ time) choose several \textit{distinct} elements from a set at random while also
 giving more probability to certain items, I used a segment tree that supports
 updates on a single node, summing on segments of the tree, and binary descent.
 
@@ -179,7 +179,7 @@ occur, limiting the exploration of the solution space. So the evolution usually
 Here we will discuss the reasons behind design choices made in the operators.
 For a brief overview, see the pseudocode listing in Sec. \ref{flowlisting}.
 
-\subsection{General ideas}
+\subsubsection{General ideas}
 The general philosophy in this algorithm is to somehow guarantee that at least
 the blocks will always be contradiction-free. The following considerations all
 aim at maintaining the correctness of blocks.
@@ -304,9 +304,14 @@ The averages of fitnesses on last iterations can be found in Table \ref{tableavg
 
 \begin{figure}[t]
     \begin{center}
-
+        \includegraphics[scale=0.6]{Figure_Plot.png}
     \end{center}
-    \caption{The plot of averages of average fitnesses and maximum fitnesses at every difficulty}
+    \caption{The plot of averages of average fitnesses and maximum fitnesses at every difficulty}\label{figPlot}
 \end{figure}
+
+\subsection{Discussion}
+As is clear from Fig. \ref{figPlot}, the average fitness at the last iteration
+does not depend on the difficulty of tests. Rather, it is always around 67 or 68, while
+the most fit chromosome has a fitness value of 81.
 
 \end{document}
