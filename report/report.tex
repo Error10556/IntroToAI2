@@ -1,0 +1,81 @@
+\documentclass[10pt]{article}
+\usepackage[margin=1cm, bottom=2cm]{geometry}
+\usepackage{tikz}
+\usepackage[urlcolor=blue, colorlinks=true]{hyperref}
+\usepackage{longtable}
+\usepackage{multirow}
+\usepackage{listings}
+
+\begin{document}
+
+\title{Report\\Assignment 2: Sudoku Solver}
+\author{Timur Usmanov, B23-ISE-01}
+\maketitle
+
+\section{Introduction}
+Find the complete source code and tests at \url{https://github.com/Error10556/IntroToAI2}.
+
+\section{Algorithm overview}
+
+This section provides insight into and comments on the EA solution. It considers
+the overall flow of the algorithm and its specifics: the fitness function definition,
+the variation operator implementations, and the parameter values.
+
+\subsection{General algorthim flow}
+
+The following pseudocode represents the actual execution steps of the program.
+
+\begin{lstlisting}[numbers=left, keywords={if,for,while,and,procedure,Sudoku,repeat,times,
+    Chromosome,Population,read,print,crossover,mutate,reduce,main,
+    fitness,constructor,this}, escapechar=`]
+procedure main
+    given := read the Sudoku from console
+    population := create a Population from (given)
+    while the population's best member is not the full solution
+        crossover(population)
+        mutate(population)
+        reduce down to the fixed size(population)
+
+        if the maximum fitness has not improved in the last MaxPatience iterations
+            population := create a Population from (given)
+            reset the counter of non-improving iterations
+    print(population.best)
+
+constructor of Population(given: Sudoku)
+    this := empty Population
+    repeat nMaxPopulation times
+        initSudoku := fill each block in given correctly, but randomly
+        this.add(Chromosome(initSudoku))
+
+procedure crossover(population: Population)
+    repeat nCrossovers times
+        a := choose a Chromosome not chosen on this line so far
+                randomly with weights = (fitness + `$\frac19$`(fitness_range))
+        b := choose a Chromosome randomly uniformly
+        repeat nChildren times
+            population.add(single_crossover(a, b))
+\end{lstlisting}
+\pagebreak
+\begin{lstlisting}[numbers=left, firstnumber=last, keywords={if,for,while,and,procedure,Sudoku,repeat,times,
+	Chromosome,Population,read,print,crossover,mutate,reduce,main,
+	fitness,constructor,this}, escapechar=`]
+procedure mutate(population: Population)
+    repeat nMutants times
+        mutant := choose and copy a Chromosome among the initial ones
+                randomly with weights = (fitness)
+        nMutations := choose a number in [1, nMaxMutations] randomly uniformly
+        repeat nMutations times
+            single_mutation(mutant)
+        population.add(mutant)
+    
+procedure reduce(population: Population)
+    mxFit := fitness(population.best)
+    while population.size > nMaxPopulation and population.size > nElites:
+        victim := choose a Chromosome that is not in the top-(nElites) randomly
+                with weights = (mxFit - fitness + `$\frac13$`fitness_range)
+        population.remove(victim)
+    while population.size > nMaxPopulation
+        population.remove(population.worst)
+\end{lstlisting}
+
+\end{document}

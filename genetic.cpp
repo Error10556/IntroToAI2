@@ -1192,9 +1192,7 @@ public:
     }
 
     // Remove chromosomes until there are not more than 'n' left.
-    // The most fit are immune, but may be removed if all other chromosomes
-    // have already been erased.
-    // The 'elites' best chromosomes are also immune.
+    // The 'elites' best chromosomes are immune.
     void KillExcess(int elites)
     {
         int sz = pop.size();
