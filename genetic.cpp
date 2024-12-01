@@ -1270,11 +1270,14 @@ int main(int argc, char** argv)
 {
     // For debugging
     bool verbose = false;
+    bool report = false;
     for (int i = 1; i < argc; i++)
     {
         char* str = argv[i];
         if (strcmp(str, "--verbose") == 0)
             verbose = true;
+        if (strcmp(str, "--report") == 0)
+            report = true;
     }
     // Initialize rand()
     srand(clock());
@@ -1341,5 +1344,15 @@ int main(int argc, char** argv)
     // If not in verbose, we have not seen the solution
     if (!verbose)
         cout << pop.Best().Field();
+    // Make a report on the last generation
+    if (report)
+    {
+        cout << "REPORT\n";
+        cout << "Max " << pop.Best().Fitness() <<
+            "\nAverage ";
+        long long sm = 0;
+        for (const Chromosome& ch : pop.AllChromosomes())
+            sm += ch.Fitness();
+        cout << sm / (double)pop.AllChromosomes().size() << endl;
+    }
 }
-// Attempt 2
