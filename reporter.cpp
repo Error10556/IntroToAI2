@@ -73,7 +73,8 @@ int main(int argc, char** argv)
     for (auto& p : reports)
     {
         cout << p.first << ": {";
-        int smax = 0, savg = 0;
+        int smax = 0;
+        double savg = 0;
         for (auto& s : p.second)
         {
             smax += s.Max;
