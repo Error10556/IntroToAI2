@@ -6,6 +6,11 @@
 \usepackage{multirow}
 \usepackage{listings}
 
+\lstdefinestyle{lststyle}{numbers=left, escapechar=`}
+\lstdefinelanguage{pseu}{keywords={if,for,while,and,procedure,Sudoku,repeat,times,
+    Chromosome,Population,read,print,crossover,mutate,select,main,choose,segment_tree_choose,
+    fitness,constructor,this,return}}
+
 \begin{document}
 
 \title{Report\\Assignment 2: Sudoku Solver}
@@ -19,22 +24,23 @@ Find the complete source code and tests at \url{https://github.com/Error10556/In
 
 This section provides insight into and comments on the EA solution. It considers
 the overall flow of the algorithm and its specifics: the fitness function definition,
-the variation operator implementations, and the parameter values.
+the variation operator implementations, the parameter values, and others.
 
-\subsection{General algorthim flow}
+From here, we will call a subgrid of $3\times3$ cells a \textit{block}.
 
+\subsection{General algorthim flow}\label{flowlisting}
+
+For this task, I decided to implement a Genetic Algorithm, which is a kind of evolutionary algorithms.
 The following pseudocode represents the actual execution steps of the program.
 
-\begin{lstlisting}[numbers=left, keywords={if,for,while,and,procedure,Sudoku,repeat,times,
-    Chromosome,Population,read,print,crossover,mutate,reduce,main,
-    fitness,constructor,this}, escapechar=`]
+\begin{lstlisting}[language=pseu, style=lststyle]
 procedure main
     given := read the Sudoku from console
     population := create a Population from (given)
     while the population's best member is not the full solution
         crossover(population)
         mutate(population)
-        reduce down to the fixed size(population)
+        select a fixed number of survivors(population)
 
         if the maximum fitness has not improved in the last MaxPatience iterations
             population := create a Population from (given)
@@ -53,29 +59,172 @@ procedure crossover(population: Population)
                 randomly with weights = (fitness + `$\frac19$`(fitness_range))
         b := choose a Chromosome randomly uniformly
         repeat nChildren times
-            population.add(single_crossover(a, b))
+            child := a Chromosome whose Sudoku consists of 1-8 random blocks from a
+                    and the other blocks from b
+            population.add(child)
 \end{lstlisting}
 \pagebreak
-\begin{lstlisting}[numbers=left, firstnumber=last, keywords={if,for,while,and,procedure,Sudoku,repeat,times,
-	Chromosome,Population,read,print,crossover,mutate,reduce,main,
-	fitness,constructor,this}, escapechar=`]
+\begin{lstlisting}[language=pseu, style=lststyle, firstnumber=last]
 procedure mutate(population: Population)
-    repeat nMutants times
+    repeat nMutants times and then until the population size reaches nMaxPopulation
         mutant := choose and copy a Chromosome among the initial ones
                 randomly with weights = (fitness)
         nMutations := choose a number in [1, nMaxMutations] randomly uniformly
         repeat nMutations times
-            single_mutation(mutant)
+            exchange any two non-initial digits in the same block
         population.add(mutant)
     
-procedure reduce(population: Population)
+procedure select(population: Population)
     mxFit := fitness(population.best)
     while population.size > nMaxPopulation and population.size > nElites:
         victim := choose a Chromosome that is not in the top-(nElites) randomly
-                with weights = (mxFit - fitness + `$\frac13$`fitness_range)
+                with weights = (mxFit - fitness + `$\frac13$`fitness\_range)
         population.remove(victim)
     while population.size > nMaxPopulation
         population.remove(population.worst)
 \end{lstlisting}
+
+Basically, the program initializes the population by randomly filling blocks
+with permutations of numbers $1$ -- $9$ and repeatedly crosses over, mutates,
+and reduces the population until the solution is found or there have been no
+improvements for some time, in which case the program restarts.
+
+\subsection{Weighted random choice optimization}
+To efficiently choose several \textit{distinct} elements from a set at random while also
+giving more probability to certain items, I used a segment tree that supports
+updates on a single node, summing on segments of the tree, and binary descent.
+
+The choice procedure is as follows:
+
+\begin{lstlisting}[language=pseu, style=lststyle]
+procedure segment_tree_choose
+    sz := the sum of all weights
+    if sz = 0
+        return -1
+    rnd := randomly uniformly choose from [0, sz)
+    pos := the root node
+    while pos represents a segment, not an individual element
+        if rnd < the sum in the left half of segment at pos
+            pos := left half of segment at pos
+        else
+            rnd := rnd - the sum in the left half of segment at pos
+            pos := right half of segment at pos
+    return the index of element at pos
+\end{lstlisting}
+
+\subsection{Chromosome representation}\label{repr}
+
+We define a \textit{zone} as a row, a column, or a block.
+
+\textbf{\texttt{Chromosome}} instances consist of:
+
+\begin{itemize}
+    \item a $9\times9$ grid of digits from $0$ to $9$, where $0$ represents an
+        empty cell;
+    \item a $9\times9$ grid of boolean flags that mark immutable cells (the cells
+        that are filled initially);
+    \item the counter of non-empty cells;
+    \item the \textit{linear counter} of mistakes;
+    \item the \textit{quadratic counter} of mistakes;
+    \item 27 \textbf{\texttt{Digit Counter}}s: one for each of the 9 rows, columns, and blocks;
+    \item the hash-sum for fast comparison.
+\end{itemize}
+
+In a single zone, a \textit{linear counter} of mistakes holds the minimum number of cells that have to be
+emptied for the zone to contain no contradictions. A \textit{quadratic counter} of mistakes for a single zone
+holds the number of distinct pairs of cells that contain the same digit. These are maintained by \textbf{\texttt{Digit Counter}}s.
+
+The \textit{linear counter} of mistakes holds the sum of linear counters across all \textit{zones}. Similarly,
+the \textit{quadratic counter} is the sum of all quadratic counters in all zones. In the present implementation,
+the quadratic counter is not used, but it was on previous versions.
+
+A \textbf{\texttt{Digit Counter}} maintains the quantity of every digit in a zone and
+the zone's linear and quadratic counters.
+
+The hash-sum is a polynomial hash of length 81 with coefficient 10; it is updated
+efficiently (in $O(1)$) after each modification. The powers of 10 needed for
+fast updates are calculated at compile-time to further reduce the runtime overhead.
+
+\subsection{Fitness function}\label{fitness}
+
+In the above solution, the \textit{fitness} function of a chromosome equals
+\[81 - (\textrm{The value of the linear counter of mistakes}).\]
+This formula does not punish the chromosome too harshly for disadvantageous mutations,
+allowing for more genetic diversity and flexibility; for example, it is possible for a
+long series of mutations to occur (without the chromosome being discarded) that would lead
+to a nontrivial improvement. This formula gives more chances to avoid local maximums.
+
+Thus, the maximum fitness is obviously $81$ and is only possible if the solution
+is absolutely correct. The minimum fitness is achieved when the sudoku field is
+filled with one digit. Then, in each zone the linear counter of mistakes holds the value 8
+(the maximum possible value, obviously; see the definition in Sec. \ref{repr}),
+and the total punishment is $27\cdot8=216$ since there are 27 zones. That gives
+the minimum value of the fitness function $81-27\cdot8=-135$.
+
+The \texttt{fitness\_range} value used in the pseudocode (Sec. \ref{flowlisting}) is,
+therefore, $81-(-135)=216$.
+
+Previously, another formula was used:
+\[(\textrm{No. of non-empty cells}) - (\textrm{The quadratic counter of mistakes})
+    - (\textrm{5 points if the sudoku contains a contradiction, else 0}).\]
+It provided fast improvements of chromosomes at the start of the evolution.
+However, this function made it unlikely for significantly long chains of mutations to
+occur, limiting the exploration of the solution space. So the evolution usually
+``got stuck'' at $79/81$ maximum fitness and never reached a complete solution.
+
+\subsection{Variation operators}
+Here we will discuss the reasons behind design choices made in the operators.
+For a brief overview, see the pseudocode listing in Sec. \ref{flowlisting}.
+
+\subsection{General ideas}
+The general philosophy in this algorithm is to somehow guarantee that at least
+the blocks will always be contradiction-free. The following considerations all
+aim at maintaining the correctness of blocks.
+
+Another key idea is to use a data structure such as an \texttt{ordered\_set} in \texttt{C++}
+to store the chromosomes in a population. First, this approach allows for easy
+access to the best and the worst chromosomes of the population if we primarily
+order them by fitness. Second, this data structure automatically discards duplicate
+chromosomes, which promotes genetic diversity that is necessary to search for
+the correct solution in a wider range.
+
+\subsubsection{Mutation}
+No mutation should be able to create a contradiction within a block, i.e.
+exchange different digits across different blocks or reassign a singular digit.
+Therefore, we only allow swaps within one block.
+
+We pick the base chromosomes for mutations randomly, but with slightly more preference
+to fit individuals. This heuristic allows to quickly advance the overall fitness
+of the population, especially at early stages. In fact, this design choice may
+contradict our motivation for using a lenient fitness function (see Sec. \ref{fitness})
+at the final iterations, which could cause convergence to local maxima. However,
+the advantage of performance boost at early iterations outweighs this drawback.
+
+\subsection{Crossover}
+Again, no crossover should be able to create a contradiction within a block. Therefore,
+we only cross chromosomes over via borrowing whole blocks from the parents.
+
+When choosing parents, we pick one using weighted randomness and the other using
+simple, uniform randomness. That is because, on the one hand, we want the child
+to be fit, i.e. containing as few mistakes in its rows and columns as possible.
+If one parent contains few errors, then the blocks taken from that parent will also
+be less likely to form contradictions.
+On the other hand, we want to explore as much of the solution space as possible.
+So the second parent is chosen at random to try to find a new, unexplored combination
+that would lead the evolution to the absolute solution.
+
+When choosing the first parent (the one chosen with weighted randomness), we do
+not want to completely exclude the chromosomes with low fitness. Therefore, the
+weights assigned to the chromosomes are increased by $\frac19$ of the fitness range ($\frac19\cdot216=24$).
+
+\subsection{Selection}
+We generally want to discard the unfit chromosomes, that is why we assign more
+weight and are likely to remove those which differ from the current maximum more.
+To increase randomness and diversity among chromosomes, we add $\frac13$ of the
+fitness range ($\frac13\cdot216=72$) to the weights.
+
+However, we have to preserve the best
+
+\section{stats}\label{stats}
 
 \end{document}
